@@ -6,6 +6,7 @@ import { SkillArea, SkillProgress, DifficultyLevel, LEVEL_NAMES } from '@/lib/ty
 import { getAllSkillProgress, getStreak, getParentSettings, getAnimalCollection } from '@/lib/db';
 import { speak, shouldGreet } from '@/lib/speech';
 import BadgeDisplay from '@/components/BadgeDisplay';
+import WordOfDayCard, { autoPlayWordOfDay } from '@/components/WordOfDayCard';
 
 interface WordOfDay {
   word: string;
@@ -71,16 +72,27 @@ export default function HomePage() {
     }
   }, [hasWordOfDayUnlock]);
 
-  // British greeting on home screen — once per session
+  // British greeting + Word of Day auto-play — once per session / once per day
   useEffect(() => {
     if (!loading && shouldGreet()) {
       const greeted = sessionStorage.getItem('ppw_greeted');
       if (!greeted) {
         sessionStorage.setItem('ppw_greeted', '1');
-        setTimeout(() => speak('Hello Wes! What shall we practise today?', { rate: 0.9, pitch: 1.1 }), 1000);
+        setTimeout(async () => {
+          speak('Hello Wes! What shall we practise today?', { rate: 0.9, pitch: 1.1 });
+          // Auto-play Word of Day once per calendar day
+          if (wordOfDay) {
+            const today = new Date().toDateString();
+            const lastWotd = localStorage.getItem('ppw_last_wotd_play');
+            if (lastWotd !== today) {
+              localStorage.setItem('ppw_last_wotd_play', today);
+              setTimeout(() => autoPlayWordOfDay(wordOfDay), 4000);
+            }
+          }
+        }, 1000);
       }
     }
-  }, [loading]);
+  }, [loading, wordOfDay]);
 
   if (loading) {
     return (
@@ -152,14 +164,7 @@ export default function HomePage() {
         )}
 
         {/* Word of the Day */}
-        {wordOfDay && (
-          <div className="bg-gradient-to-br from-coral/10 to-sunshine/10 border-2 border-coral/20 rounded-2xl p-4 mb-6">
-            <p className="text-xs font-bold text-coral mb-1">📚 WORD OF THE DAY</p>
-            <p className="text-2xl font-extrabold text-navy">{wordOfDay.word}</p>
-            <p className="text-sm text-gray-600 mt-1">{wordOfDay.definition}</p>
-            <p className="text-xs text-gray-400 italic mt-1">&ldquo;{wordOfDay.example_sentence}&rdquo;</p>
-          </div>
-        )}
+        {wordOfDay && <WordOfDayCard data={wordOfDay} />}
 
         {/* Game mode buttons */}
         <div className="space-y-3 mb-6">

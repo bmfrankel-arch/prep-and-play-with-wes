@@ -172,6 +172,28 @@ export function speakChoices(choices: string[], _pauseMs: number = 800): void {
   speak(text, { rate: 0.85, pitch: 1.05 });
 }
 
+// ── Speak a sequence of items with pauses ──
+
+export interface SequenceItem {
+  text: string;
+  pauseAfter?: number;
+  rate?: number;
+  pitch?: number;
+}
+
+export async function speakSequence(items: SequenceItem[]): Promise<void> {
+  for (const item of items) {
+    await new Promise<void>((resolve) => {
+      speak(item.text, { rate: item.rate, pitch: item.pitch, onEnd: resolve });
+      // Failsafe — resolve after 15s max in case onEnd never fires
+      setTimeout(resolve, 15000);
+    });
+    if (item.pauseAfter) {
+      await new Promise(r => setTimeout(r, item.pauseAfter));
+    }
+  }
+}
+
 // ── Stop ──
 
 export function stopSpeaking(): void {

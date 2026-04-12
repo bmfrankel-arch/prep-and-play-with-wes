@@ -15,10 +15,13 @@ export default function PinGate({ children }: PinGateProps) {
   const [errorMsg, setErrorMsg] = useState('');
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState(0);
+  const [pinConfigured, setPinConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (isDashboardUnlocked()) setUnlocked(true);
     setChecking(false);
+    // Check PIN configuration status
+    fetch('/api/pin-status').then(r => r.json()).then(d => setPinConfigured(d.configured)).catch(() => setPinConfigured(null));
   }, []);
 
   // Lockout countdown
@@ -48,7 +51,7 @@ export default function PinGate({ children }: PinGateProps) {
       const res = await fetch('/api/verify-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin: pin.toString().trim() }),
       });
       const data = await res.json();
       if (data.valid) {
@@ -57,7 +60,12 @@ export default function PinGate({ children }: PinGateProps) {
         return;
       }
     } catch {
-      if (pin === '1234') { unlockDashboard(); setUnlocked(true); return; }
+      // Offline fallback — accept default
+      if (pin.trim() === '1234') {
+        unlockDashboard();
+        setUnlocked(true);
+        return;
+      }
     }
 
     // Wrong PIN
@@ -102,7 +110,7 @@ export default function PinGate({ children }: PinGateProps) {
           {errorMsg && <p className="text-coral font-bold text-sm animate-fade-in">{errorMsg}</p>}
         </div>
 
-        {/* Number pad — 100x100 buttons with 12px gap */}
+        {/* Number pad */}
         <div className="grid grid-cols-3 gap-3 max-w-[336px] mx-auto">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map(key => (
             <button
@@ -125,6 +133,13 @@ export default function PinGate({ children }: PinGateProps) {
             </button>
           ))}
         </div>
+
+        {/* Debug PIN status */}
+        {pinConfigured !== null && (
+          <p className="text-[10px] text-gray-300 mt-4">
+            PIN configured: {pinConfigured ? 'YES' : 'NO (using default)'}
+          </p>
+        )}
       </div>
     </div>
   );
