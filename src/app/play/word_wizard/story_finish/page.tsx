@@ -18,7 +18,8 @@ function StoryQuestion(question: GameQuestion, onAnswer: (a: string) => void, _l
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn w-full bg-grass/10 hover:bg-grass text-navy hover:text-white border-2 border-grass/30 hover:border-grass px-4 py-4 text-xl"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn w-full bg-grass/10 hover:bg-grass text-navy hover:text-white border-2 border-grass/30 hover:border-grass px-4 py-4 text-xl focus:outline-none"
           >
             {choice}
           </button>

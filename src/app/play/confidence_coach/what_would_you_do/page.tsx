@@ -15,7 +15,8 @@ function WhatWouldYouDoQuestion(question: GameQuestion, onAnswer: (a: string) =>
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn w-full bg-navy/5 hover:bg-navy text-navy hover:text-white border-2 border-navy/20 hover:border-navy px-4 py-4 text-lg"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn w-full bg-navy/5 hover:bg-navy text-navy hover:text-white border-2 border-navy/20 hover:border-navy px-4 py-4 text-lg focus:outline-none"
           >
             {choice}
           </button>

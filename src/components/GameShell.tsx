@@ -93,7 +93,8 @@ export default function GameShell({
     const autoRead = settings.auto_read_questions !== false; // default true
     if (!loading && questions[currentIndex] && autoRead) {
       const q = questions[currentIndex];
-      const text = q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '';
+      // Use tts_reading if available (e.g. algebra equations), otherwise fall back
+      const text = q.tts_reading || (q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '');
       if (text) {
         const timer = setTimeout(() => speak(text), 500);
         return () => { clearTimeout(timer); stopSpeaking(); };
@@ -418,7 +419,7 @@ export default function GameShell({
           onClick={() => {
             const q = questions[currentIndex];
             if (!q) return;
-            const text = q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '';
+            const text = q.tts_reading || (q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '');
             if (text) speak(text);
           }}
           className="text-4xl active:scale-90 transition-transform"

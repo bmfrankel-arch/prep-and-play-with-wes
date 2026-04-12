@@ -22,7 +22,8 @@ function OddOneOutQuestion(question: GameQuestion, onAnswer: (a: string) => void
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn bg-green-50 hover:bg-grass text-navy hover:text-white border-2 border-green-200 hover:border-grass px-4 py-5"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn bg-green-50 hover:bg-grass text-navy hover:text-white border-2 border-green-200 hover:border-grass px-4 py-5 focus:outline-none"
           >
             {choice}
           </button>

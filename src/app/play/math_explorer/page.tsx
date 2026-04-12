@@ -9,7 +9,7 @@ import BadgeDisplay from '@/components/BadgeDisplay';
 const subGames = [
   { id: 'counting_adventures', name: 'Counting Adventures', emoji: '🧮', desc: 'Fun word problems!' },
   { id: 'more_or_less', name: 'More or Less', emoji: '⚖️', desc: 'Compare numbers!' },
-  { id: 'algebra_puzzles', name: 'Algebra Puzzles', emoji: '⭐', desc: 'Find the missing number!' },
+  { id: 'algebra_puzzles', name: 'Algebra Puzzles', emoji: '🔤', desc: 'Find x, y, and n!' },
 ];
 
 export default function MathExplorerPage() {

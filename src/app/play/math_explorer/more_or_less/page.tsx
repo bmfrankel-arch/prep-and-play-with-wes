@@ -14,7 +14,8 @@ function MoreLessQuestion(question: GameQuestion, onAnswer: (a: string) => void,
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn bg-blue-50 hover:bg-navy text-navy hover:text-white border-2 border-blue-200 hover:border-navy text-2xl font-extrabold px-4 py-5"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn bg-blue-50 hover:bg-navy text-navy hover:text-white border-2 border-blue-200 hover:border-navy text-2xl font-extrabold px-4 py-5 focus:outline-none"
           >
             {choice}
           </button>

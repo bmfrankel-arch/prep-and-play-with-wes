@@ -255,8 +255,9 @@ export default function RememberListPage() {
                 <button
                   key={word}
                   onClick={() => handleSelect(word)}
+                  onTouchEnd={(e) => e.currentTarget.blur()}
                   disabled={selected.includes(word)}
-                  className={`game-btn border-2 px-4 py-4 ${
+                  className={`game-btn border-2 px-4 py-4 focus:outline-none ${
                     selected.includes(word)
                       ? 'bg-grass/20 border-grass text-grass'
                       : 'bg-purple-50 border-purple-200 hover:bg-purple-500 hover:text-white text-navy'

@@ -187,8 +187,9 @@ export default function OrderRecallPage() {
                 <button
                   key={item}
                   onClick={() => handleTap(item)}
+                  onTouchEnd={(e) => e.currentTarget.blur()}
                   disabled={tapped.includes(item)}
-                  className={`game-btn border-2 px-4 py-4 ${tapped.includes(item) ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-purple-50 border-purple-200 hover:bg-purple-500 hover:text-white text-navy'}`}
+                  className={`game-btn border-2 px-4 py-4 focus:outline-none ${tapped.includes(item) ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-purple-50 border-purple-200 hover:bg-purple-500 hover:text-white text-navy'}`}
                 >
                   {item}
                 </button>

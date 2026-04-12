@@ -19,7 +19,8 @@ function CountingQuestion(question: GameQuestion, onAnswer: (a: string) => void,
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn bg-sunshine/20 hover:bg-sunshine text-navy border-2 border-sunshine/40 hover:border-sunshine text-3xl font-extrabold px-4 py-6"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn bg-sunshine/20 hover:bg-sunshine text-navy border-2 border-sunshine/40 hover:border-sunshine text-3xl font-extrabold px-4 py-6 focus:outline-none"
           >
             {choice}
           </button>

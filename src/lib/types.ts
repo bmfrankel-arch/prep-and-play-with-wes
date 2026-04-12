@@ -114,6 +114,7 @@ export interface GameQuestion {
   all_choices?: string[];
   display_time?: number;
   require_order?: boolean;
+  tts_reading?: string;
 }
 
 export interface Story {

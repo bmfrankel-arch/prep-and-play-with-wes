@@ -5,6 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SkillArea, AssessmentQuestion, getPerformanceBand, getPerformanceStars, SKILL_CONFIG, DifficultyLevel } from '@/lib/types';
 import { saveAssessment, getAllSkillProgress, getParentSettings } from '@/lib/db';
 
+const IMAGE_PHRASES = /\b(picture|image|diagram|shown below|count the objects|look at the|in the drawing|in the figure)\b/i;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function filterBadQuestions<T extends { question: string }>(questions: T[]): T[] {
+  return questions.filter(q => !IMAGE_PHRASES.test(q.question));
+}
+
 function AssessmentContent() {
   const router = useRouter();
   const params = useSearchParams();
@@ -41,7 +48,9 @@ function AssessmentContent() {
       });
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
-      setQuestions(data.questions || []);
+      const raw = (data.questions || []) as AssessmentQuestion[];
+      const cleaned = filterBadQuestions(raw);
+      setQuestions(cleaned);
       setPhase('question');
     } catch {
       setError('Could not load assessment.');
@@ -292,8 +301,9 @@ function AssessmentContent() {
               <button
                 key={choice}
                 onClick={() => handleAnswer(choice)}
+                onTouchEnd={(e) => e.currentTarget.blur()}
                 disabled={!!selectedAnswer}
-                className={`assessment-choice w-full text-left flex items-center gap-4 ${
+                className={`assessment-choice w-full text-left flex items-center gap-4 focus:outline-none ${
                   isSelected ? 'border-navy bg-navy text-white' : ''
                 }`}
               >

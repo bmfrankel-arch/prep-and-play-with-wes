@@ -144,6 +144,7 @@ For each, return JSON array with objects containing:
 ${level <= 2 ? '- "emoji_visual": emoji representation of the problem (e.g. "🍎🍎🍎 + 🍎🍎 = ?")' : ''}
 
 Frame as fun scenarios: birthday parties, pets, playground, snacks, toy collection.
+IMPORTANT: For counting questions, always display the objects as emoji directly in the "emoji_visual" field (e.g. "🍎🍎🍎 + 🍎🍎 = ?"). NEVER reference a picture, image, or diagram that is not rendered as text or emoji.
 Return ONLY valid JSON array, no markdown.`,
 
         more_or_less: `Generate ${count} comparison exercise(s) for a 5-year-old at ${level === 1 ? 'Level 1: Compare two numbers up to 100, ask which is more/less, how many more/fewer. Also include ordering 3 numbers least to greatest.' : level === 2 ? 'Level 2: Compare and order numbers up to 100, introduce "how many times more" comparisons.' : 'Level 3: Place value comparisons (tens and ones), rounding to nearest 10, ordering 4-5 numbers.'}.
@@ -156,13 +157,22 @@ For each, return JSON array with objects containing:
 
 Return ONLY valid JSON array, no markdown.`,
 
-        algebra_puzzles: `Generate ${count} missing number puzzle(s) for a 5-year-old at ${level === 1 ? 'Level 1: Missing number in addition and subtraction equations up to 20 (e.g. "4 + ⭐ = 11"). 4 answer choices. Large friendly format.' : level === 2 ? 'Level 2: Missing number in all four operations up to 50 (e.g. "⭐ x 3 = 12" or "20 ÷ ⭐ = 4"). 4 answer choices.' : 'Level 3: Two-variable problems (e.g. "⭐ + ☐ = 10, if ⭐ = 3, what is ☐?"), missing numbers in sequences, all operations up to 100. 4 answer choices.'}.
+        algebra_puzzles: `Generate ${count} missing number puzzle(s) for a 5-year-old at ${level === 1 ? 'Level 1: Missing number in addition and subtraction equations up to 20. Use the variable letter "x" for the unknown (e.g. "4 + x = 11"). 4 answer choices.' : level === 2 ? 'Level 2: Missing number in all four operations up to 50. Use "x" for the unknown (e.g. "x × 3 = 12" or "20 ÷ x = 4"). Use × for multiplication, ÷ for division. 4 answer choices.' : 'Level 3: Two-variable problems using "x" and "y" (e.g. "x + y = 10, if x = 3, what is y?"), missing numbers in sequences using "n", all operations up to 100. 4 answer choices.'}.
+
+IMPORTANT RULES FOR VARIABLE LETTERS:
+- Use lowercase "x" as the primary unknown variable
+- Use "y" as the second variable in two-variable problems
+- Use "n" for number sequence problems (e.g. "n, 4, 6, 8 — what is n?")
+- NEVER use ⭐, ☐, or any emoji as variable symbols
+- NEVER use letters that look like numbers (l, o, O)
+- Use × for multiplication (not x or *), ÷ for division
 
 For each, return JSON array with objects containing:
-- "question": the equation or problem displayed with ⭐ or ☐ for unknowns
+- "question": the equation displayed with variable letters (e.g. "4 + x = 11" or "x + y = 10, if x = 3, what is y?")
 - "choices": array of 4 number answers (as strings)
 - "correct_answer": the correct number (as string)
-- "explanation": shows the filled-in equation (e.g. "The answer is 7! So 4 + 7 = 11 ✓")
+- "explanation": shows the solved equation with the answer filled in (e.g. "The answer is 7! So x = 7, because 4 + 7 = 11 ✓")
+- "tts_reading": a natural speech version of the question (e.g. "4 plus x equals 11. What is x?")
 
 Return ONLY valid JSON array, no markdown.`,
       },

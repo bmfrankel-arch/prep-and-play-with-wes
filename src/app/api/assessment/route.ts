@@ -3,6 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+const NO_IMAGE_RULE = `
+CRITICAL RULE — NO IMAGE REFERENCES:
+Do not generate any question that references a picture, image, diagram, or visual that must be displayed separately. All questions must be fully self-contained using only text and/or emoji.
+For counting questions, display the objects to count directly in the question text using emoji (e.g. "🍎🍎🍎🍎 — How many apples are there?").
+For pattern questions, show the pattern directly using emoji sequences (e.g. "🔴🔵🔴🔵❓ — What comes next?").
+NEVER say "count the objects in the picture", "look at the image", "in the diagram", "as shown below", or any phrase implying a visual that is not directly rendered as text or emoji in the question.
+For algebra/missing number questions, use variable letters (x, y, n) — NEVER use ⭐ or ☐ as variable symbols. Use × for multiplication, ÷ for division.`;
+
 export async function POST(req: NextRequest) {
   try {
     const { skillArea, level, type = 'standard', skillLevels } = await req.json();
@@ -22,6 +30,8 @@ IMPORTANT: Use formal, neutral, test-appropriate language. NOT game language.
 Example WRONG: "Wes, which one doesn't belong? 🎉"
 Example RIGHT: "Which item does not belong in this group?"
 
+${NO_IMAGE_RULE}
+
 Each question must have exactly 4 answer choices labeled (A), (B), (C), (D).
 
 Return a JSON array of 20 objects, each with:
@@ -37,8 +47,8 @@ Return ONLY valid JSON array, no markdown.`;
 
 Skill areas and what they test:
 - word_wizard: vocabulary, verbal reasoning, word categories, riddles
-- pattern_detective: visual patterns, shape sequences, sorting rules
-- math_explorer: counting, comparison, missing numbers, word problems
+- pattern_detective: visual patterns using emoji sequences, sorting rules
+- math_explorer: counting with emoji, comparison, missing numbers using variable letters (x, y, n), word problems
 - memory_master: recall, sequence memory, story comprehension
 - confidence_coach: social scenarios, greetings, handling uncertainty
 
@@ -47,6 +57,8 @@ Generate 6 questions from "${skillArea}" and 4 questions from other random skill
 IMPORTANT: Use formal, neutral, test-appropriate language. NOT game language.
 Example WRONG: "Hey Wes! Which one doesn't belong? 🎉"
 Example RIGHT: "Which item does not belong in this group?"
+
+${NO_IMAGE_RULE}
 
 Each question must have exactly 4 answer choices.
 

@@ -19,7 +19,8 @@ function RiddleQuestion(question: GameQuestion, onAnswer: (a: string) => void, _
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn bg-coral/10 hover:bg-coral text-navy hover:text-white border-2 border-coral/30 hover:border-coral px-4 py-5"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn bg-coral/10 hover:bg-coral text-navy hover:text-white border-2 border-coral/30 hover:border-coral px-4 py-5 focus:outline-none"
           >
             {choice}
           </button>

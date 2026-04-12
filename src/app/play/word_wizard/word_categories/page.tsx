@@ -13,7 +13,8 @@ function CategoryQuestion(question: GameQuestion, onAnswer: (a: string) => void,
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className="game-btn bg-purple-100 hover:bg-purple-500 text-navy hover:text-white border-2 border-purple-200 hover:border-purple-500 px-4 py-5"
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className="game-btn bg-purple-100 hover:bg-purple-500 text-navy hover:text-white border-2 border-purple-200 hover:border-purple-500 px-4 py-5 focus:outline-none"
           >
             {choice}
           </button>

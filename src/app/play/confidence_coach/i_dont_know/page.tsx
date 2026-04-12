@@ -16,7 +16,8 @@ function IDontKnowQuestion(question: GameQuestion, onAnswer: (a: string) => void
           <button
             key={choice}
             onClick={() => onAnswer(choice)}
-            className={`game-btn w-full border-2 px-4 py-4 text-lg ${
+            onTouchEnd={(e) => e.currentTarget.blur()}
+            className={`game-btn w-full border-2 px-4 py-4 text-lg focus:outline-none ${
               choice.includes("I don't know")
                 ? 'bg-gold/20 hover:bg-gold border-gold/40 hover:border-gold text-navy font-extrabold'
                 : 'bg-gray-50 hover:bg-navy/10 border-gray-200 hover:border-navy/30 text-navy'
