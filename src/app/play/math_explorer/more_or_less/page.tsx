@@ -4,7 +4,7 @@ import GameShell from '@/components/GameShell';
 import NumberLine from '@/components/NumberLine';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function MoreLessQuestion(question: GameQuestion, onAnswer: (a: string) => void, level: DifficultyLevel) {
+function MoreLessQuestion(question: GameQuestion, onAnswer: (a: string) => void, level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">More or Less? ⚖️</h2>
@@ -15,9 +15,12 @@ function MoreLessQuestion(question: GameQuestion, onAnswer: (a: string) => void,
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn bg-blue-50 hover:bg-navy text-navy hover:text-white border-2 border-blue-200 hover:border-navy text-2xl font-extrabold px-4 py-5 focus:outline-none"
+            className={selected === choice
+              ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 text-2xl font-extrabold px-4 py-5 focus:outline-none relative'
+              : 'game-btn bg-blue-50/10 hover:bg-blue-50/20 text-navy border-2 border-blue-200/30 text-2xl font-extrabold px-4 py-5 focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

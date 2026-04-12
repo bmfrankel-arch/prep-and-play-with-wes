@@ -18,6 +18,7 @@ interface GameShellProps {
     question: GameQuestion,
     onAnswer: (answer: string) => void,
     level: DifficultyLevel,
+    selectedAnswer?: string | null,
   ) => React.ReactNode;
   isParentGuided?: boolean;
 }
@@ -48,6 +49,8 @@ export default function GameShell({
   const [gameComplete, setGameComplete] = useState(false);
   const [settings, setSettings] = useState(getParentSettings());
   const [error, setError] = useState<string | null>(null);
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
@@ -114,6 +117,17 @@ export default function GameShell({
       }
     }
   }, [currentIndex, loading, questions]);
+
+  const handleSelect = (answer: string) => {
+    if (locked || feedback) return;
+    setSelectedChoice(prev => prev === answer ? null : answer);
+  };
+
+  const handleSubmit = () => {
+    if (!selectedChoice || locked) return;
+    setLocked(true);
+    handleAnswer(selectedChoice);
+  };
 
   const handleAnswer = async (answer: string) => {
     const question = questions[currentIndex];
@@ -215,6 +229,8 @@ export default function GameShell({
   };
 
   const advanceQuestion = () => {
+    setSelectedChoice(null);
+    setLocked(false);
     if (currentIndex + 1 >= questions.length) {
       finishGame();
     } else {
@@ -444,10 +460,28 @@ export default function GameShell({
         </button>
       </div>
 
-      {/* Question */}
-      <div className="max-w-2xl mx-auto">
-        {renderQuestion(question, handleAnswer, level)}
+      {/* Question — pass handleSelect so tapping selects, not submits */}
+      <div className="max-w-2xl mx-auto pb-24">
+        {renderQuestion(question, handleSelect, level, selectedChoice)}
       </div>
+
+      {/* Submit button — fixed at bottom */}
+      {!feedback && (
+        <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-white via-white to-transparent">
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedChoice || locked}
+            onTouchEnd={e => e.currentTarget.blur()}
+            className={`w-full min-h-[72px] rounded-2xl font-bold text-xl transition-all focus:outline-none ${
+              selectedChoice && !locked
+                ? 'bg-grass text-white shadow-lg shadow-grass/30 animate-pulse'
+                : 'bg-gray-200 text-gray-400'
+            }`}
+          >
+            {selectedChoice ? 'Submit! ✓' : 'Pick an answer first!'}
+          </button>
+        </div>
+      )}
 
       {/* Feedback toast — bottom of screen, 1.5s max */}
       {feedback && (

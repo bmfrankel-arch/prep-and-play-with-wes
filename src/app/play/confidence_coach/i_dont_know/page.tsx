@@ -3,7 +3,7 @@
 import GameShell from '@/components/GameShell';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function IDontKnowQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function IDontKnowQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">Tricky Question! 💡</h2>
@@ -17,13 +17,16 @@ function IDontKnowQuestion(question: GameQuestion, onAnswer: (a: string) => void
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className={`game-btn w-full border-2 px-4 py-4 text-lg focus:outline-none ${
-              choice.includes("I don't know")
-                ? 'bg-gold/20 hover:bg-gold border-gold/40 hover:border-gold text-navy font-extrabold'
-                : 'bg-gray-50 hover:bg-navy/10 border-gray-200 hover:border-navy/30 text-navy'
-            }`}
+            className={selected === choice
+              ? 'game-btn w-full border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-4 text-lg focus:outline-none relative'
+              : `game-btn w-full border-2 px-4 py-4 text-lg focus:outline-none ${
+                choice.includes("I don't know")
+                  ? 'bg-gold/10 hover:bg-gold/20 border-gold/30 text-navy font-extrabold'
+                  : 'bg-gray-50/10 hover:bg-gray-50/20 border-gray-200/30 text-navy'
+              }`}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

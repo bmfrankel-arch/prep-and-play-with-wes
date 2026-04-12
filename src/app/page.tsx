@@ -212,14 +212,18 @@ export default function HomePage() {
             My Animals 🦁
           </button>
           {animalCount >= 2 ? (
-            <button
-              onClick={() => router.push('/battle')}
-              className="text-sm text-red-400 hover:text-red-300 font-bold block mx-auto"
-            >
+            <button onClick={() => router.push('/battle')} className="text-sm text-red-400 hover:text-red-300 font-bold block mx-auto">
               BATTLE ARENA ⚔️
             </button>
           ) : animalCount > 0 ? (
             <p className="text-xs text-gray-500 block mx-auto">Unlock more animals to battle!</p>
+          ) : null}
+          {animalCount >= 10 ? (
+            <button onClick={() => router.push('/battle/tournament/setup')} className="text-sm text-yellow-500 hover:text-yellow-400 font-bold block mx-auto">
+              TOURNAMENT! 🏆
+            </button>
+          ) : animalCount >= 2 ? (
+            <p className="text-xs text-gray-400 block mx-auto">Unlock {10 - animalCount} more for Tournament!</p>
           ) : null}
           <button
             onClick={() => router.push('/stories')}

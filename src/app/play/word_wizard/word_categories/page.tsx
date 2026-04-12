@@ -3,7 +3,7 @@
 import GameShell from '@/components/GameShell';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function CategoryQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function CategoryQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">Which Doesn&apos;t Belong? 🔤</h2>
@@ -14,9 +14,12 @@ function CategoryQuestion(question: GameQuestion, onAnswer: (a: string) => void,
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn bg-purple-100 hover:bg-purple-500 text-navy hover:text-white border-2 border-purple-200 hover:border-purple-500 px-4 py-5 focus:outline-none"
+            className={selected === choice
+              ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-5 focus:outline-none relative'
+              : 'game-btn bg-purple-100/10 hover:bg-purple-100/20 text-navy border-2 border-purple-200/30 px-4 py-5 focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

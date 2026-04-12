@@ -23,12 +23,13 @@ function AssessmentContent() {
   const levelParam = parseInt(params.get('level') || '1') as DifficultyLevel;
   const isWeekly = params.get('type') === 'weekly';
 
-  const [phase, setPhase] = useState<'pin' | 'loading' | 'question' | 'pause' | 'animal_unlock' | 'results'>('loading');
+  const [phase, setPhase] = useState<'pin' | 'loading' | 'question' | 'animal_unlock' | 'results'>('loading');
   const [unlockedAnimal, setUnlockedAnimal] = useState<Animal | null>(null);
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AssessmentQuestion[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [animalSaveStatus, setAnimalSaveStatus] = useState<'saved' | 'failed' | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -96,31 +97,32 @@ function AssessmentContent() {
     }
   };
 
-  const handleAnswer = (answer: string) => {
-    if (selectedAnswer) return;
-    setSelectedAnswer(answer);
+  const handleSelect = (answer: string) => {
+    if (phase !== 'question') return;
+    setSelectedAnswer(prev => prev === answer ? null : answer);
+  };
+
+  const handleSubmit = () => {
+    if (!selectedAnswer || phase !== 'question') return;
     const q = questions[currentIndex];
     const record: AssessmentQuestion = {
       question: q.question,
       choices: q.choices,
-      wes_answer: answer,
+      wes_answer: selectedAnswer,
       correct_answer: q.correct_answer,
-      is_correct: answer === q.correct_answer,
+      is_correct: selectedAnswer === q.correct_answer,
       skill_area: (q as unknown as { skill_area: SkillArea }).skill_area || skillParam || 'word_wizard',
     };
     const newAnswers = [...answers, record];
     setAnswers(newAnswers);
 
-    setPhase('pause');
-    setTimeout(() => {
-      setSelectedAnswer(null); // Reset BEFORE rendering next question
-      if (currentIndex + 1 >= questions.length) {
-        finishAssessment(newAnswers);
-      } else {
-        setCurrentIndex(i => i + 1);
-        setPhase('question');
-      }
-    }, 1000);
+    // No feedback in assessment — advance immediately
+    setSelectedAnswer(null);
+    if (currentIndex + 1 >= questions.length) {
+      finishAssessment(newAnswers);
+    } else {
+      setCurrentIndex(i => i + 1);
+    }
   };
 
   const finishAssessment = async (finalAnswers: AssessmentQuestion[]) => {
@@ -144,12 +146,13 @@ function AssessmentContent() {
       const animal = selectAnimal(score, total, collection);
       if (animal) {
         setUnlockedAnimal(animal);
-        await saveAnimalUnlock({
+        const { saved } = await saveAnimalUnlock({
           animal_id: animal.id,
           rarity: animal.rarity,
           quiz_score_when_unlocked: score,
           quiz_type_when_unlocked: isWeekly ? 'weekly' : 'standard',
         });
+        setAnimalSaveStatus(saved ? 'saved' : 'failed');
         setPhase('animal_unlock');
         return;
       }
@@ -205,6 +208,7 @@ function AssessmentContent() {
       <AnimalUnlockSequence
         animal={unlockedAnimal}
         onComplete={() => setPhase('results')}
+        saveStatus={animalSaveStatus}
       />
     );
   }
@@ -322,21 +326,32 @@ function AssessmentContent() {
               return (
                 <button
                   key={`${currentIndex}-${choice}`}
-                  onClick={() => handleAnswer(choice)}
+                  onClick={() => handleSelect(choice)}
                   onTouchEnd={(e) => e.currentTarget.blur()}
-                  disabled={!!selectedAnswer}
-                  className={`assessment-choice w-full text-left flex items-center gap-4 focus:outline-none transition-colors ${
-                    isSelected ? 'border-navy bg-navy text-white' : 'border-gray-200'
+                  className={`assessment-choice w-full text-left flex items-center gap-4 focus:outline-none transition-all ${
+                    isSelected ? 'border-navy bg-blue-50 scale-[1.02]' : 'border-gray-200'
                   }`}
                 >
                   <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                    isSelected ? 'bg-white text-navy' : 'bg-gray-100 text-navy'
+                    isSelected ? 'bg-navy text-white' : 'bg-gray-100 text-navy'
                   }`}>{letter}</span>
                   <span className="flex-1">{choice}</span>
+                  {isSelected && <span className="text-navy font-bold">✓</span>}
                 </button>
               );
             })}
           </div>
+        </div>
+
+        {/* Next Question button — fixed at bottom */}
+        <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-white via-white to-transparent">
+          <button onClick={handleSubmit} disabled={!selectedAnswer}
+            onTouchEnd={e => e.currentTarget.blur()}
+            className={`w-full min-h-[72px] rounded-2xl font-bold text-xl transition-all focus:outline-none ${
+              selectedAnswer ? 'bg-navy text-white shadow-lg' : 'bg-gray-200 text-gray-400'
+            }`}>
+            {selectedAnswer ? 'NEXT QUESTION →' : 'Pick an answer first!'}
+          </button>
         </div>
       </div>
     </div>

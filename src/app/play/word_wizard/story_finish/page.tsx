@@ -3,7 +3,7 @@
 import GameShell from '@/components/GameShell';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function StoryQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function StoryQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">Finish the Story! 📚</h2>
@@ -19,9 +19,12 @@ function StoryQuestion(question: GameQuestion, onAnswer: (a: string) => void, _l
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn w-full bg-grass/10 hover:bg-grass text-navy hover:text-white border-2 border-grass/30 hover:border-grass px-4 py-4 text-xl focus:outline-none"
+            className={selected === choice
+              ? 'game-btn w-full border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-4 text-xl focus:outline-none relative'
+              : 'game-btn w-full bg-grass/10 hover:bg-grass/20 text-navy border-2 border-grass/30 px-4 py-4 text-xl focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

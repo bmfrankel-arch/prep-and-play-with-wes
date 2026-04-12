@@ -24,7 +24,7 @@ function getEmoji(name: string): string {
   return '❓';
 }
 
-function OddOneOutQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function OddOneOutQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">Which Is Different? 👀</h2>
@@ -45,10 +45,13 @@ function OddOneOutQuestion(question: GameQuestion, onAnswer: (a: string) => void
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn bg-green-50 hover:bg-grass text-navy hover:text-white border-2 border-green-200 hover:border-grass px-4 py-5 focus:outline-none flex flex-col items-center gap-1"
+            className={selected === choice
+              ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-5 focus:outline-none flex flex-col items-center gap-1 relative'
+              : 'game-btn bg-green-50/10 hover:bg-green-50/20 text-navy border-2 border-green-200/30 px-4 py-5 focus:outline-none flex flex-col items-center gap-1'}
           >
             <span className="text-4xl">{getEmoji(choice)}</span>
             <span className="text-base">{choice}</span>
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

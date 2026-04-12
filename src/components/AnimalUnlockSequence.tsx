@@ -8,6 +8,7 @@ import Confetti from './Confetti';
 interface AnimalUnlockSequenceProps {
   animal: Animal;
   onComplete: () => void;
+  saveStatus?: 'saved' | 'failed' | null;
 }
 
 function Stars({ count }: { count: number }) {
@@ -32,7 +33,7 @@ const RARITY_TEXT_COLOR: Record<AnimalRarity, string> = {
   legendary: 'text-yellow-400',
 };
 
-export default function AnimalUnlockSequence({ animal, onComplete }: AnimalUnlockSequenceProps) {
+export default function AnimalUnlockSequence({ animal, onComplete, saveStatus }: AnimalUnlockSequenceProps) {
   const [phase, setPhase] = useState<'dark' | 'title' | 'card_back' | 'card_front' | 'done'>('dark');
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -186,6 +187,8 @@ export default function AnimalUnlockSequence({ animal, onComplete }: AnimalUnloc
       {/* Buttons */}
       {phase === 'done' && (
         <div className="absolute bottom-12 flex flex-col gap-3 items-center animate-fade-in z-10">
+          {saveStatus === 'saved' && <p className="text-green-400 text-xs font-bold">✓ Saved to your collection!</p>}
+          {saveStatus === 'failed' && <p className="text-yellow-400 text-xs font-bold">⚠️ Saved locally — will sync when online</p>}
           <button onClick={onComplete}
             className="bg-gradient-to-r from-yellow-500 to-amber-500 text-navy font-bold text-lg px-8 py-4 rounded-2xl active:scale-95 transition-transform shadow-lg">
             Add to My Collection! 🦁

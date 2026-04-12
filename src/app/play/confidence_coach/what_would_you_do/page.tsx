@@ -3,7 +3,7 @@
 import GameShell from '@/components/GameShell';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function WhatWouldYouDoQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function WhatWouldYouDoQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">What Would You Do? 🤔</h2>
@@ -16,9 +16,12 @@ function WhatWouldYouDoQuestion(question: GameQuestion, onAnswer: (a: string) =>
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn w-full bg-navy/5 hover:bg-navy text-navy hover:text-white border-2 border-navy/20 hover:border-navy px-4 py-4 text-lg focus:outline-none"
+            className={selected === choice
+              ? 'game-btn w-full border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-4 text-lg focus:outline-none relative'
+              : 'game-btn w-full bg-navy/10 hover:bg-navy/20 text-navy border-2 border-navy/30 px-4 py-4 text-lg focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

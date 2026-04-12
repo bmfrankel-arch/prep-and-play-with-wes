@@ -168,6 +168,31 @@ export interface BattleStats {
   most_winning_animal_id: string;
 }
 
+export interface Tournament {
+  id?: string;
+  participants: string[];
+  bracket_state: TournamentMatch[];
+  current_match: number;
+  current_round: number;
+  champion_animal_id: string | null;
+  total_correct_predictions: number;
+  started_at?: string;
+  completed_at?: string | null;
+}
+
+export interface TournamentMatch {
+  round: number;
+  match_index: number;
+  animal1_id: string;
+  animal2_id: string;
+  winner_id: string | null;
+  terrain: string;
+  score1: number;
+  score2: number;
+  wes_prediction: string | null;
+  wes_correct: boolean | null;
+}
+
 export interface ParentSettings {
   pronunciation_mode: boolean;
   microphone_mode: boolean;

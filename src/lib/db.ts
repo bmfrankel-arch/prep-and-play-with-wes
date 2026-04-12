@@ -14,6 +14,7 @@ import {
   AnimalUnlock,
   BattleRecord,
   BattleStats,
+  Tournament,
 } from './types';
 
 // ── Local fallback storage for when Supabase is not configured ──
@@ -337,18 +338,59 @@ export async function getWeeklyReports(): Promise<WeeklyReport[]> {
 
 // ── Animal Collection ──
 
-export async function saveAnimalUnlock(unlock: AnimalUnlock): Promise<void> {
+export async function saveAnimalUnlock(unlock: AnimalUnlock): Promise<{ saved: boolean }> {
   const record = { ...unlock, unlocked_at: new Date().toISOString() };
-  if (!isSupabaseConfigured()) {
-    const col = getLocal<AnimalUnlock[]>('animal_collection', []);
-    if (!col.find(a => a.animal_id === unlock.animal_id)) {
-      col.push({ ...record, id: crypto.randomUUID() });
-      setLocal('animal_collection', col);
-    }
-    return;
+
+  // Always save locally first as backup
+  const col = getLocal<AnimalUnlock[]>('animal_collection', []);
+  if (!col.find(a => a.animal_id === unlock.animal_id)) {
+    col.push({ ...record, id: crypto.randomUUID() });
+    setLocal('animal_collection', col);
   }
-  const { data: existing } = await supabase.from('animal_collection').select('id').eq('animal_id', unlock.animal_id).single();
-  if (!existing) await supabase.from('animal_collection').insert(record);
+
+  if (!isSupabaseConfigured()) return { saved: true };
+
+  try {
+    const { data: existing } = await supabase.from('animal_collection').select('id').eq('animal_id', unlock.animal_id).single();
+    if (!existing) {
+      const { error } = await supabase.from('animal_collection').insert(record);
+      if (error) {
+        console.error('Failed to save animal unlock:', error);
+        // Queue for retry
+        queueOfflineSync('animal_collection', record);
+        return { saved: false };
+      }
+    }
+    return { saved: true };
+  } catch (err) {
+    console.error('Animal unlock save error:', err);
+    queueOfflineSync('animal_collection', record);
+    return { saved: false };
+  }
+}
+
+// Offline sync queue
+function queueOfflineSync(table: string, record: unknown): void {
+  const queue = getLocal<{ table: string; record: unknown }[]>('offline_sync_queue', []);
+  queue.push({ table, record });
+  setLocal('offline_sync_queue', queue);
+}
+
+export async function syncOfflineQueue(): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const queue = getLocal<{ table: string; record: unknown }[]>('offline_sync_queue', []);
+  if (queue.length === 0) return;
+
+  const remaining: typeof queue = [];
+  for (const item of queue) {
+    try {
+      const { error } = await supabase.from(item.table).insert(item.record as Record<string, unknown>);
+      if (error) remaining.push(item);
+    } catch {
+      remaining.push(item);
+    }
+  }
+  setLocal('offline_sync_queue', remaining);
 }
 
 export async function getAnimalCollection(): Promise<AnimalUnlock[]> {
@@ -389,4 +431,25 @@ export function getBattleStats(): BattleStats {
 
 export function saveBattleStats(stats: BattleStats): void {
   setLocal('battle_stats', stats);
+}
+
+// ── Tournaments ──
+
+export function saveTournament(t: Tournament): void {
+  setLocal('current_tournament', t);
+  // Also save to history when complete
+  if (t.completed_at) {
+    const history = getLocal<Tournament[]>('tournament_history', []);
+    history.unshift(t);
+    setLocal('tournament_history', history);
+    setLocal('current_tournament', null);
+  }
+}
+
+export function getCurrentTournament(): Tournament | null {
+  return getLocal<Tournament | null>('current_tournament', null);
+}
+
+export function getTournamentHistory(): Tournament[] {
+  return getLocal<Tournament[]>('tournament_history', []);
 }

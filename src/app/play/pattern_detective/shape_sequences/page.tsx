@@ -3,7 +3,7 @@
 import GameShell from '@/components/GameShell';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function ShapeQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function ShapeQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">What Comes Next? 🔍</h2>
@@ -18,9 +18,12 @@ function ShapeQuestion(question: GameQuestion, onAnswer: (a: string) => void, _l
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn bg-grass/10 hover:bg-grass text-4xl border-2 border-grass/30 hover:border-grass px-4 py-6 focus:outline-none"
+            className={selected === choice
+              ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 text-4xl px-4 py-6 focus:outline-none relative'
+              : 'game-btn bg-grass/10 hover:bg-grass/20 text-4xl border-2 border-grass/30 px-4 py-6 focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

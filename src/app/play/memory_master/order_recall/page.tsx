@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
-import { speakWords } from '@/lib/speech';
+import { speakSequence, speak } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 
@@ -59,14 +59,24 @@ export default function OrderRecallPage() {
   useEffect(() => {
     if (phase !== 'show' || !questions[currentIndex]) return;
     const q = questions[currentIndex];
-    const displaySec = Math.max(q.display_time || 5, 3);
+    // Doubled display times
+    const displayTimes: Record<number, number> = { 1: 12, 2: 8, 3: 6 };
+    const pauseMs: Record<number, number> = { 1: 2000, 2: 1500, 3: 1000 };
+    const totalSec = displayTimes[level] || 12;
 
-    // Read items aloud in order
-    speakWords(q.sequence, 800);
+    // TTS: read each item with number
+    const items = q.sequence.flatMap((item: string, i: number) => [
+      { text: `${i + 1}`, rate: 0.80, pitch: 1.05, pauseAfter: 300 },
+      { text: item, rate: 0.70, pitch: 1.05, pauseAfter: pauseMs[level] || 2000 },
+    ]);
+    items.push({ text: "Remember the order, Wes!", rate: 0.85, pitch: 1.05, pauseAfter: 0 });
+    speakSequence(items);
 
-    const timer = setTimeout(() => setPhase('recall'), displaySec * 1000);
-    return () => clearTimeout(timer);
-  }, [phase, currentIndex, questions]);
+    // Warning at 3 seconds
+    const warningTimer = setTimeout(() => speak("Get ready...", { rate: 0.85, pitch: 1.0 }), (totalSec - 3) * 1000);
+    const timer = setTimeout(() => setPhase('recall'), totalSec * 1000);
+    return () => { clearTimeout(timer); clearTimeout(warningTimer); };
+  }, [phase, currentIndex, questions, level]);
 
   const handleTap = async (item: string) => {
     if (phase !== 'recall') return;
@@ -168,11 +178,14 @@ export default function OrderRecallPage() {
       <div className="max-w-lg mx-auto">
         {phase === 'show' && (
           <div className="bg-white rounded-3xl p-8 shadow-lg text-center">
-            <h2 className="text-2xl font-extrabold text-navy mb-6">Remember the order! 🔢</h2>
-            <div className="flex flex-wrap gap-3 justify-center">
-              {q.sequence.map((item, i) => (
-                <div key={i} className="bg-sunshine text-navy text-xl font-bold px-5 py-3 rounded-2xl flex items-center gap-2">
-                  <span className="text-sm text-coral font-bold">{i + 1}.</span> {item}
+            <h2 className="text-2xl font-extrabold text-navy mb-6">Remember the order, Wes! 🔢</h2>
+            <div className="flex flex-col items-center gap-4">
+              {q.sequence.map((item: string, i: number) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-lg text-gray-400 font-bold w-6 text-right">{i + 1}.</span>
+                  <span className="bg-sunshine text-navy text-2xl font-extrabold px-6 py-3 rounded-2xl min-w-[180px] text-center">
+                    {item}
+                  </span>
                 </div>
               ))}
             </div>

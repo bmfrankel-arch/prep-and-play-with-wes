@@ -4,7 +4,7 @@ import GameShell from '@/components/GameShell';
 import NumberLine from '@/components/NumberLine';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function CountingQuestion(question: GameQuestion, onAnswer: (a: string) => void, level: DifficultyLevel) {
+function CountingQuestion(question: GameQuestion, onAnswer: (a: string) => void, level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">Counting Adventure! 🧮</h2>
@@ -20,9 +20,12 @@ function CountingQuestion(question: GameQuestion, onAnswer: (a: string) => void,
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn bg-sunshine/20 hover:bg-sunshine text-navy border-2 border-sunshine/40 hover:border-sunshine text-3xl font-extrabold px-4 py-6 focus:outline-none"
+            className={selected === choice
+              ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 text-3xl font-extrabold px-4 py-6 focus:outline-none relative'
+              : 'game-btn bg-sunshine/10 hover:bg-sunshine/20 text-navy border-2 border-sunshine/30 text-3xl font-extrabold px-4 py-6 focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

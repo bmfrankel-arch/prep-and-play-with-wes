@@ -3,7 +3,7 @@
 import GameShell from '@/components/GameShell';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-function StoryDetailQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel) {
+function StoryDetailQuestion(question: GameQuestion, onAnswer: (a: string) => void, _level: DifficultyLevel, selected?: string | null) {
   // For story details, the API returns a story and questions within.
   // We display the story and the first available question.
   const storyText = question.story || question.question;
@@ -24,9 +24,12 @@ function StoryDetailQuestion(question: GameQuestion, onAnswer: (a: string) => vo
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn w-full bg-purple-100 hover:bg-purple-500 text-navy hover:text-white border-2 border-purple-200 hover:border-purple-500 px-4 py-4 text-xl focus:outline-none"
+            className={selected === choice
+              ? 'game-btn w-full border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-4 text-xl focus:outline-none relative'
+              : 'game-btn w-full bg-purple-100/10 hover:bg-purple-100/20 text-navy border-2 border-purple-200/30 px-4 py-4 text-xl focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>

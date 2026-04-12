@@ -27,7 +27,7 @@ function StyledEquation({ text }: { text: string }) {
   );
 }
 
-function AlgebraQuestion(question: GameQuestion, onAnswer: (a: string) => void, level: DifficultyLevel) {
+function AlgebraQuestion(question: GameQuestion, onAnswer: (a: string) => void, level: DifficultyLevel, selected?: string | null) {
   return (
     <div className="bg-white rounded-3xl p-6 shadow-lg text-center">
       <h2 className="text-2xl font-extrabold text-navy mb-4">Find the Missing Number!</h2>
@@ -42,9 +42,12 @@ function AlgebraQuestion(question: GameQuestion, onAnswer: (a: string) => void, 
             key={choice}
             onClick={() => onAnswer(choice)}
             onTouchEnd={(e) => e.currentTarget.blur()}
-            className="game-btn bg-gold/20 hover:bg-gold text-navy border-2 border-gold/40 hover:border-gold text-3xl font-extrabold px-4 py-6 focus:outline-none"
+            className={selected === choice
+              ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 text-3xl font-extrabold px-4 py-6 focus:outline-none relative'
+              : 'game-btn bg-gold/10 hover:bg-gold/20 text-navy border-2 border-gold/30 text-3xl font-extrabold px-4 py-6 focus:outline-none'}
           >
             {choice}
+            {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>
