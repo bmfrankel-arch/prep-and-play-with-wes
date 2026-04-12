@@ -186,6 +186,7 @@ For each, return JSON array with objects containing:
 - "explanation": why this is a good response (for parent)
 
 Make scenarios warm and realistic: meeting a teacher, a new classmate, a school principal, a testing psychologist.
+IMPORTANT: Always use the child's name "Wes" in suggested answers and scenarios. Never use placeholder text like "[child's name]" or "[name]".
 Return ONLY valid JSON array, no markdown.`,
 
         what_would_you_do: `Generate ${count} social situation exercise(s) for a 5-year-old at ${level === 1 ? 'beginner' : level === 2 ? 'intermediate' : 'advanced'} level.
@@ -197,6 +198,7 @@ For each, return JSON array with objects containing:
 - "explanation": child-friendly discussion of why the best answer works and what makes it kind
 
 Scenarios: lunch table, playground, classroom, meeting new friends, sharing, taking turns.
+Always use the child's name "Wes" — never "[child's name]" or placeholders.
 Return ONLY valid JSON array, no markdown.`,
 
         i_dont_know: `Generate ${count} "tricky question" exercise(s) for a 5-year-old at ${level === 1 ? 'beginner' : level === 2 ? 'intermediate' : 'advanced'} level. The goal is to teach that it's okay not to know an answer.
@@ -235,9 +237,11 @@ Return ONLY valid JSON object (not array), no markdown.`,
       return NextResponse.json({ error: 'Invalid skill area or sub-game' }, { status: 400 });
     }
 
+    // Use lower max_tokens for faster responses — most game questions fit in 1200 tokens
+    const tokenLimit = skillArea === 'story_builder' ? 2000 : 1200;
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      max_tokens: tokenLimit,
       messages: [{ role: 'user', content: prompt }],
     });
 

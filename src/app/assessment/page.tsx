@@ -26,6 +26,7 @@ function AssessmentContent() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const settings = getParentSettings();
 
@@ -90,11 +91,11 @@ function AssessmentContent() {
 
     setPhase('pause');
     setTimeout(() => {
+      setSelectedAnswer(null); // Reset BEFORE rendering next question
       if (currentIndex + 1 >= questions.length) {
         finishAssessment(newAnswers);
       } else {
         setCurrentIndex(i => i + 1);
-        setSelectedAnswer(null);
         setPhase('question');
       }
     }, 1000);
@@ -105,31 +106,15 @@ function AssessmentContent() {
     const total = finalAnswers.length;
     const band = getPerformanceBand(score, total);
 
-    if (isWeekly) {
-      const scoresBySkill: Record<string, number> = {};
-      finalAnswers.forEach(a => {
-        scoresBySkill[a.skill_area] = (scoresBySkill[a.skill_area] || 0) + (a.is_correct ? 1 : 0);
-      });
-      await saveAssessment({
-        assessment_type: 'weekly',
-        skill_area: null,
-        score,
-        total_questions: total,
-        performance_band: band,
-        questions_detail: finalAnswers,
-        current_level_at_time: levelParam,
-      });
-    } else {
-      await saveAssessment({
-        assessment_type: 'standard',
-        skill_area: skillParam,
-        score,
-        total_questions: total,
-        performance_band: band,
-        questions_detail: finalAnswers,
-        current_level_at_time: levelParam,
-      });
-    }
+    await saveAssessment({
+      assessment_type: isWeekly ? 'weekly' : 'standard',
+      skill_area: isWeekly ? null : skillParam,
+      score,
+      total_questions: total,
+      performance_band: band,
+      questions_detail: finalAnswers,
+      current_level_at_time: levelParam,
+    });
     setPhase('results');
   };
 
@@ -140,24 +125,17 @@ function AssessmentContent() {
         <div className="max-w-sm w-full text-center">
           <p className="text-5xl mb-4">🔒</p>
           <h2 className="text-2xl font-bold text-navy mb-4">Parent PIN Required</h2>
-          <input
-            type="password"
-            maxLength={4}
-            value={pinInput}
+          <input type="password" maxLength={4} value={pinInput}
             onChange={e => setPinInput(e.target.value)}
             className="text-center text-3xl tracking-widest border-2 border-gray-300 rounded-xl p-3 w-40 mb-4"
-            placeholder="••••"
-          />
+            placeholder="••••" />
           <br />
-          <button onClick={handlePinSubmit} className="bg-navy text-white font-bold px-8 py-3 rounded-xl">
-            Start Assessment
-          </button>
+          <button onClick={handlePinSubmit} className="bg-navy text-white font-bold px-8 py-3 rounded-xl">Start Assessment</button>
         </div>
       </div>
     );
   }
 
-  // Loading
   if (phase === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center assessment-mode">
@@ -181,14 +159,13 @@ function AssessmentContent() {
     );
   }
 
-  // Results
+  // Results — fully scrollable
   if (phase === 'results') {
     const score = answers.filter(a => a.is_correct).length;
     const total = answers.length;
     const band = getPerformanceBand(score, total);
     const stars = getPerformanceStars(band);
 
-    // For weekly, group by skill
     const skillGroups: Record<string, AssessmentQuestion[]> = {};
     if (isWeekly) {
       answers.forEach(a => {
@@ -198,9 +175,16 @@ function AssessmentContent() {
     }
 
     return (
-      <div className="min-h-screen p-6 assessment-mode">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
+      <div className="min-h-screen overflow-y-auto assessment-mode">
+        {/* Sticky home button */}
+        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b px-4 py-3 flex justify-between items-center no-print">
+          <button onClick={() => router.push('/')} className="text-navy font-bold text-sm">🏠 Home</button>
+          <span className="text-sm font-bold text-navy">Assessment Results</span>
+          <button onClick={() => window.print()} className="text-navy font-bold text-sm">🖨️ Print</button>
+        </div>
+
+        <div className="max-w-2xl mx-auto p-4 pt-4">
+          <div className="text-center mb-6">
             <p className="text-5xl mb-3">🎓</p>
             <h1 className="text-3xl font-bold text-navy mb-2">All done, Wes! Great job.</h1>
             <p className="text-2xl font-bold text-navy">{score} out of {total} correct</p>
@@ -208,7 +192,7 @@ function AssessmentContent() {
           </div>
 
           {isWeekly && (
-            <div className="bg-gray-50 rounded-xl p-4 mb-6">
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
               <h3 className="font-bold text-navy mb-2">Score by Skill Area:</h3>
               {Object.entries(skillGroups).map(([skill, qs]) => (
                 <p key={skill} className="text-navy">
@@ -218,20 +202,16 @@ function AssessmentContent() {
             </div>
           )}
 
-          <div className="space-y-3 mb-8">
+          <div className="space-y-3 mb-6">
             {answers.map((a, i) => (
               <div key={i} className={`p-4 rounded-xl border-2 ${a.is_correct ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                 <div className="flex items-start gap-3">
                   <span className="text-xl mt-0.5">{a.is_correct ? '✅' : '❌'}</span>
                   <div className="flex-1">
                     <p className="font-bold text-navy text-sm">Q{i + 1}. {a.question}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Your answer: <strong>{a.wes_answer}</strong>
-                    </p>
+                    <p className="text-sm text-gray-600 mt-1">Your answer: <strong>{a.wes_answer}</strong></p>
                     {!a.is_correct && (
-                      <p className="text-sm text-green-700 mt-1">
-                        Correct answer: <strong>{a.correct_answer}</strong>
-                      </p>
+                      <p className="text-sm text-green-700 mt-1">Correct: <strong>{a.correct_answer}</strong></p>
                     )}
                   </div>
                 </div>
@@ -239,30 +219,9 @@ function AssessmentContent() {
             ))}
           </div>
 
-          <div className="flex gap-3 justify-center no-print">
-            <button onClick={() => window.print()} className="bg-navy text-white font-bold px-6 py-3 rounded-xl">
-              Print This Report
-            </button>
-            <button onClick={() => router.push('/')} className="bg-gray-200 text-navy font-bold px-6 py-3 rounded-xl">
-              Back to Games
-            </button>
-          </div>
-
-          {/* Print-only header */}
-          <div className="hidden print-only">
-            <h1 className="text-2xl font-bold mb-2">Prep & Play with Wes — Practice Assessment Report</h1>
-            <p>Date: {new Date().toLocaleDateString()}</p>
-            <p>Skill Area: {isWeekly ? 'Weekly Cross-Skill' : SKILL_CONFIG[skillParam as SkillArea]?.label}</p>
-            <p>Difficulty Level: {levelParam}</p>
-            <p>Score: {score}/{total} — {band}</p>
-            <hr className="my-4" />
-            <div className="mt-8 border-t pt-4">
-              <h3 className="font-bold">Parent Notes:</h3>
-              <div className="h-32 border border-gray-300 rounded mt-2" />
-            </div>
-            <p className="text-xs mt-4 text-gray-400">
-              This is a practice assessment designed to build familiarity with standardized testing formats.
-            </p>
+          <div className="flex gap-3 justify-center pb-8 no-print">
+            <button onClick={() => window.print()} className="bg-navy text-white font-bold px-6 py-3 rounded-xl">Print Report</button>
+            <button onClick={() => router.push('/')} className="bg-gray-200 text-navy font-bold px-6 py-3 rounded-xl">Back to Games</button>
           </div>
         </div>
       </div>
@@ -274,48 +233,60 @@ function AssessmentContent() {
   if (!q) return null;
 
   return (
-    <div className="min-h-screen p-6 assessment-mode">
-      {/* Progress bar */}
-      <div className="max-w-2xl mx-auto mb-8">
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-navy transition-all duration-500 rounded-full"
-            style={{ width: `${((currentIndex + (selectedAnswer ? 1 : 0)) / questions.length) * 100}%` }}
-          />
+    <div className="min-h-screen assessment-mode">
+      {/* Exit confirmation modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl p-6 max-w-sm text-center">
+            <p className="text-lg font-bold text-navy mb-4">Are you sure you want to exit the quiz?</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => router.push('/')} className="bg-coral text-white font-bold px-6 py-3 rounded-xl">Yes, Exit</button>
+              <button onClick={() => setShowExitConfirm(false)} className="bg-gray-200 text-navy font-bold px-6 py-3 rounded-xl">Continue Quiz</button>
+            </div>
+          </div>
         </div>
-        <p className="text-sm text-gray-400 text-right mt-1">
-          Question {currentIndex + 1} of {questions.length}
-        </p>
+      )}
+
+      {/* Header with question count and exit */}
+      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b px-4 py-3 flex justify-between items-center">
+        <span className="text-sm font-bold text-navy">Quiz — Question {currentIndex + 1} of {questions.length}</span>
+        <button onClick={() => setShowExitConfirm(true)} className="text-gray-400 hover:text-coral font-bold text-sm">✕ Exit</button>
       </div>
 
-      <div className="max-w-xl mx-auto">
-        <p className="text-xl font-semibold text-navy text-center mb-8 leading-relaxed">
-          {q.question}
-        </p>
+      <div className="p-6">
+        {/* Progress bar */}
+        <div className="max-w-2xl mx-auto mb-6">
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-navy transition-all duration-500 rounded-full"
+              style={{ width: `${((currentIndex + (selectedAnswer ? 1 : 0)) / questions.length) * 100}%` }} />
+          </div>
+        </div>
 
-        <div className="space-y-3">
-          {q.choices.map((choice, i) => {
-            const letter = String.fromCharCode(65 + i);
-            const isSelected = selectedAnswer === choice;
-            return (
-              <button
-                key={choice}
-                onClick={() => handleAnswer(choice)}
-                onTouchEnd={(e) => e.currentTarget.blur()}
-                disabled={!!selectedAnswer}
-                className={`assessment-choice w-full text-left flex items-center gap-4 focus:outline-none ${
-                  isSelected ? 'border-navy bg-navy text-white' : ''
-                }`}
-              >
-                <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                  isSelected ? 'bg-white text-navy' : 'bg-gray-100 text-navy'
-                }`}>
-                  {letter}
-                </span>
-                <span className="flex-1">{choice}</span>
-              </button>
-            );
-          })}
+        <div className="max-w-xl mx-auto">
+          <p className="text-xl font-semibold text-navy text-center mb-8 leading-relaxed">{q.question}</p>
+
+          <div className="space-y-3">
+            {q.choices.map((choice, i) => {
+              const letter = String.fromCharCode(65 + i);
+              const isSelected = selectedAnswer === choice;
+              return (
+                <button
+                  key={`${currentIndex}-${choice}`}
+                  onClick={() => handleAnswer(choice)}
+                  onTouchEnd={(e) => e.currentTarget.blur()}
+                  disabled={!!selectedAnswer}
+                  className={`assessment-choice w-full text-left flex items-center gap-4 focus:outline-none transition-colors ${
+                    isSelected ? 'border-navy bg-navy text-white' : 'border-gray-200'
+                  }`}
+                >
+                  <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                    isSelected ? 'bg-white text-navy' : 'bg-gray-100 text-navy'
+                  }`}>{letter}</span>
+                  <span className="flex-1">{choice}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

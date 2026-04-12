@@ -80,7 +80,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen p-6 pb-24">
+    <div className="p-6 pb-8">
       <div className="max-w-md mx-auto">
         {/* Greeting */}
         <div className="text-center mb-6">

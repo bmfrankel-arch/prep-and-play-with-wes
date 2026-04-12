@@ -88,6 +88,14 @@ export default function GameShell({
     })();
   }, [skillArea, fetchQuestions]);
 
+  // Failsafe: clear feedback toast after 2s no matter what
+  useEffect(() => {
+    if (feedback) {
+      const t = setTimeout(() => setFeedback(null), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [feedback]);
+
   // Auto-read question aloud
   useEffect(() => {
     const autoRead = settings.auto_read_questions !== false; // default true
@@ -194,11 +202,11 @@ export default function GameShell({
       }
     }
 
-    // Advance after feedback delay
+    // Advance after feedback delay — 1.5s max
     setTimeout(() => {
       setFeedback(null);
       advanceQuestion();
-    }, 2000);
+    }, 1500);
   };
 
   const advanceQuestion = () => {
@@ -434,27 +442,20 @@ export default function GameShell({
         {renderQuestion(question, handleAnswer, level)}
       </div>
 
-      {/* Feedback overlay */}
+      {/* Feedback toast — bottom of screen, 1.5s max */}
       {feedback && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 pointer-events-none">
-          <div className={`text-center p-8 rounded-3xl ${
-            feedback === 'correct' ? 'bg-grass/95' : 'bg-white/95'
-          } animate-scale-in`}>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-fade-in">
+          <div className={`text-center px-8 py-5 rounded-3xl shadow-2xl ${
+            feedback === 'correct' ? 'bg-grass/95' : 'bg-white/95 border border-gray-200'
+          }`}>
             {feedback === 'correct' ? (
-              <>
-                <p className="text-6xl mb-2">🎉</p>
-                <p className="text-3xl font-extrabold text-white">Great job, Wes!</p>
-              </>
+              <p className="text-2xl font-extrabold text-white">🎉 Great job, Wes!</p>
             ) : (
               <>
-                <p className="text-5xl mb-2">💪</p>
-                <p className="text-2xl font-bold text-navy mb-2">Good try, Wes!</p>
-                <p className="text-lg text-gray-600">
-                  The answer was: <strong className="text-coral">{currentCorrectAnswer || questions[currentIndex]?.correct_answer}</strong>
+                <p className="text-xl font-bold text-navy">💪 Good try!</p>
+                <p className="text-base text-gray-600">
+                  Answer: <strong className="text-coral">{currentCorrectAnswer || questions[currentIndex]?.correct_answer}</strong>
                 </p>
-                {questions[currentIndex]?.explanation && (
-                  <p className="text-base text-gray-500 mt-2">{questions[currentIndex].explanation}</p>
-                )}
               </>
             )}
           </div>

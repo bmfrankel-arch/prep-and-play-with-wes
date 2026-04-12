@@ -81,6 +81,7 @@ export default function StoryBuilderPage() {
   const [newLevel, setNewLevel] = useState<DifficultyLevel>(2);
   const [consCorrect, setConsCorrect] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [failCount, setFailCount] = useState(0);
 
   const fetchSession = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
@@ -170,10 +171,66 @@ export default function StoryBuilderPage() {
 
   const clearAll = () => setPlacedWords([]);
 
+  const acceptSentence = (sentence: string) => {
+    playCorrectSound();
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
+    safeSpeakText(`Wes said: ${sentence}!`);
+    setFeedback({ valid: true, text: 'Great sentence, Wes! 🌟' });
+    setFailCount(0);
+
+    const newCompleted = [...completedSentences, sentence];
+    setCompletedSentences(newCompleted);
+
+    const newCC = consCorrect + 1;
+    setConsCorrect(newCC);
+
+    // Level up check
+    if (newCC >= 3 && level < 3) {
+      const next = (level + 1) as DifficultyLevel;
+      (async () => {
+        try {
+          const progress = await getSkillProgress('story_builder');
+          const unlocks = [...progress.unlocks_earned];
+          const un = SKILL_CONFIG.story_builder.unlocks[next]?.name;
+          if (un && !unlocks.includes(un)) unlocks.push(un);
+          await updateSkillProgress({ ...progress, current_level: next, consecutive_correct: 0, consecutive_wrong: 0, unlocks_earned: unlocks });
+        } catch { /* continue */ }
+      })();
+      setLevel(next);
+      setConsCorrect(0);
+      setNewLevel(next);
+      setValidating(false);
+      setTimeout(() => setShowLevelUp(true), 1500);
+      return;
+    }
+
+    (async () => {
+      try {
+        await updateSkillProgress({ ...(await getSkillProgress('story_builder')), consecutive_correct: newCC, consecutive_wrong: 0 });
+      } catch { /* continue */ }
+    })();
+
+    setValidating(false);
+    setTimeout(() => {
+      setFeedback(null);
+      setPlacedWords([]);
+      const totalSentences = session?.sentences?.length ?? 3;
+      if (sentenceIndex + 1 >= totalSentences) {
+        finishStory(newCompleted);
+      } else {
+        setSentenceIndex(i => i + 1);
+      }
+    }, 1500);
+  };
+
   const submitSentence = async () => {
     if (!currentSentence || placedWords.length === 0) return;
     setValidating(true);
     const sentence = placedWords.map(w => w.word).join(' ');
+
+    // After 2 API failures, accept anyway — never block progress
+    const newFailCount = failCount + 1;
 
     try {
       const res = await fetch('/api/validate-sentence', {
@@ -189,59 +246,34 @@ export default function StoryBuilderPage() {
       const data = await res.json();
 
       if (data.valid) {
-        playCorrectSound();
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-        safeSpeakText(`Wes said: ${sentence}!`);
-        setFeedback({ valid: true, text: data.feedback || 'Great sentence!' });
-
-        const newCompleted = [...completedSentences, sentence];
-        setCompletedSentences(newCompleted);
-
-        const newCC = consCorrect + 1;
-        setConsCorrect(newCC);
-
-        if (newCC >= 3 && level < 3) {
-          const next = (level + 1) as DifficultyLevel;
-          try {
-            const progress = await getSkillProgress('story_builder');
-            const unlocks = [...progress.unlocks_earned];
-            const un = SKILL_CONFIG.story_builder.unlocks[next]?.name;
-            if (un && !unlocks.includes(un)) unlocks.push(un);
-            await updateSkillProgress({ ...progress, current_level: next, consecutive_correct: 0, consecutive_wrong: 0, unlocks_earned: unlocks });
-          } catch { /* continue */ }
-          setLevel(next);
-          setConsCorrect(0);
-          setNewLevel(next);
-          setTimeout(() => setShowLevelUp(true), 2000);
-          setValidating(false);
-          return;
-        }
-        try {
-          await updateSkillProgress({ ...(await getSkillProgress('story_builder')), consecutive_correct: newCC, consecutive_wrong: 0 });
-        } catch { /* continue */ }
-
-        setTimeout(() => {
-          setFeedback(null);
-          setPlacedWords([]);
-          const totalSentences = session?.sentences?.length ?? 3;
-          if (sentenceIndex + 1 >= totalSentences) {
-            finishStory(newCompleted);
-          } else {
-            setSentenceIndex(i => i + 1);
-          }
-        }, 3000);
+        acceptSentence(sentence);
+        return;
       } else {
+        // Invalid sentence — show hint but don't reset words
         const hint = data.feedback || currentSentence.hint || 'Try a different order!';
         safeSpeakText(hint);
         setFeedback({ valid: false, text: hint });
+        setFailCount(newFailCount);
+        setValidating(false);
         setTimeout(() => setFeedback(null), 3000);
+
+        // After 2 consecutive failures, accept anyway
+        if (newFailCount >= 2) {
+          setTimeout(() => { acceptSentence(sentence); }, 1500);
+        }
       }
-    } catch {
-      setFeedback({ valid: false, text: 'Try rearranging the words!' });
-      setTimeout(() => setFeedback(null), 3000);
+    } catch (err) {
+      console.error('Validate sentence error:', err);
+      setFailCount(newFailCount);
+      // After 2 API failures, accept the sentence
+      if (newFailCount >= 2) {
+        acceptSentence(sentence);
+      } else {
+        setFeedback({ valid: false, text: 'Hmm, let me check again...' });
+        setValidating(false);
+        setTimeout(() => setFeedback(null), 2000);
+      }
     }
-    setValidating(false);
   };
 
   const finishStory = async (sentences: string[]) => {

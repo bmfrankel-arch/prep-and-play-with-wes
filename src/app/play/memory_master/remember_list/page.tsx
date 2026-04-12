@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
+import { speakWords } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 
@@ -61,9 +62,15 @@ export default function RememberListPage() {
 
   useEffect(() => {
     if (phase !== 'memorize' || !questions[currentIndex]) return;
+    const q = questions[currentIndex];
+    const displaySec = Math.max(q.display_time || 6, 3); // minimum 3s, default 6s
+
+    // Read words aloud during memorize
+    speakWords(q.words_to_remember, 800);
+
     const timer = setTimeout(() => {
       setPhase('recall');
-    }, (questions[currentIndex].display_time || 5) * 1000);
+    }, displaySec * 1000);
     return () => clearTimeout(timer);
   }, [phase, currentIndex, questions]);
 
@@ -232,8 +239,8 @@ export default function RememberListPage() {
                 </span>
               ))}
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div className="bg-coral h-3 rounded-full transition-all duration-1000" style={{ width: '100%', animation: `shrinkBar ${q.display_time}s linear forwards` }} />
+            <div className="w-full bg-gray-200 rounded-full h-3 mt-4">
+              <div className="bg-coral h-3 rounded-full" style={{ animation: `shrinkBar ${Math.max(q.display_time || 6, 3)}s linear forwards` }} />
             </div>
             <style jsx>{`@keyframes shrinkBar { from { width: 100%; } to { width: 0%; } }`}</style>
           </div>

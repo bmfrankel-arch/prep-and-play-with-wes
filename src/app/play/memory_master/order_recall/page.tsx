@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
+import { speakWords } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 
@@ -57,7 +58,13 @@ export default function OrderRecallPage() {
 
   useEffect(() => {
     if (phase !== 'show' || !questions[currentIndex]) return;
-    const timer = setTimeout(() => setPhase('recall'), (questions[currentIndex].display_time || 4) * 1000);
+    const q = questions[currentIndex];
+    const displaySec = Math.max(q.display_time || 5, 3);
+
+    // Read items aloud in order
+    speakWords(q.sequence, 800);
+
+    const timer = setTimeout(() => setPhase('recall'), displaySec * 1000);
     return () => clearTimeout(timer);
   }, [phase, currentIndex, questions]);
 

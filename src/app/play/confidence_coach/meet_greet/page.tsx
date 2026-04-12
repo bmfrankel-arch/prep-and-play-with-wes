@@ -132,7 +132,7 @@ export default function MeetGreetPage() {
           {level === 1 || showModel ? (
             <div className="bg-grass/10 rounded-2xl p-4 mb-6 border-2 border-grass/30">
               <p className="text-sm font-bold text-grass mb-2">Great answer example:</p>
-              <p className="text-lg text-navy font-bold">&ldquo;{s.suggested_answer}&rdquo;</p>
+              <p className="text-lg text-navy font-bold">&ldquo;{s.suggested_answer.replace(/\[child'?s? ?name\]/gi, 'Wes').replace(/\[name\]/gi, 'Wes')}&rdquo;</p>
             </div>
           ) : null}
 

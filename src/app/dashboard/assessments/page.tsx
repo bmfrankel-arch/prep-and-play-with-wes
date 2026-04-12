@@ -40,7 +40,7 @@ export default function AssessmentHistoryPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold text-navy">
-                      {a.assessment_type === 'weekly' ? 'Weekly Assessment' : SKILL_CONFIG[a.skill_area as SkillArea]?.label || 'Assessment'}
+                      {a.assessment_type === 'weekly' ? 'Weekly Assessment' : (a.skill_area ? SKILL_CONFIG[a.skill_area as SkillArea]?.label : null) || 'General Assessment'}
                     </p>
                     <p className="text-sm text-gray-500">
                       {a.completed_at ? new Date(a.completed_at).toLocaleDateString() : ''}
