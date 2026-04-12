@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkillArea, SkillProgress, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getAllSkillProgress, getGameSessions, getStreak, updateSkillProgress, getSkillProgress, lockDashboard, getAnimalCollection } from '@/lib/db';
-import { AnimalUnlock } from '@/lib/types';
+import { getAllSkillProgress, getGameSessions, getStreak, updateSkillProgress, getSkillProgress, lockDashboard, getAnimalCollection, getBattleStats } from '@/lib/db';
+import { AnimalUnlock, BattleStats } from '@/lib/types';
 import { ANIMALS } from '@/data/animals';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<{ skill_area: string; played_at?: string; score: number; total_questions: number }[]>([]);
   const [streak, setStreak] = useState(0);
   const [animalCol, setAnimalCol] = useState<AnimalUnlock[]>([]);
+  const [battleSt, setBattleSt] = useState<BattleStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function DashboardPage() {
     setSessions(s);
     setStreak(st);
     setAnimalCol(ac);
+    setBattleSt(getBattleStats());
     setLoading(false);
   };
 
@@ -262,6 +264,19 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
+
+            {/* Battle Stats */}
+            {battleSt && battleSt.total_battles > 0 && (
+              <div className="bg-white border rounded-2xl p-4">
+                <h3 className="font-bold text-navy mb-3">⚔️ Battle Arena Stats</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <p>Total battles: <strong>{battleSt.total_battles}</strong></p>
+                  <p>Accuracy: <strong>{Math.round((battleSt.total_wins_predicted / battleSt.total_battles) * 100)}%</strong></p>
+                  <p>Current streak: <strong>🔥 {battleSt.current_streak}</strong></p>
+                  <p>Best streak: <strong>🏆 {battleSt.best_streak}</strong></p>
+                </div>
+              </div>
+            )}
 
             {/* Quick actions */}
             <div className="flex gap-3 flex-wrap">

@@ -12,6 +12,8 @@ import {
   Story,
   WeeklyReport,
   AnimalUnlock,
+  BattleRecord,
+  BattleStats,
 } from './types';
 
 // ── Local fallback storage for when Supabase is not configured ──
@@ -355,4 +357,36 @@ export async function getAnimalCollection(): Promise<AnimalUnlock[]> {
   }
   const { data } = await supabase.from('animal_collection').select('*').order('unlocked_at', { ascending: false });
   return (data || []) as AnimalUnlock[];
+}
+
+// ── Battles ──
+
+export async function saveBattle(battle: BattleRecord): Promise<void> {
+  const record = { ...battle, battled_at: new Date().toISOString() };
+  if (!isSupabaseConfigured()) {
+    const battles = getLocal<BattleRecord[]>('battles', []);
+    battles.unshift({ ...record, id: crypto.randomUUID() });
+    setLocal('battles', battles);
+    return;
+  }
+  await supabase.from('battles').insert(record);
+}
+
+export async function getBattles(limit: number = 20): Promise<BattleRecord[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<BattleRecord[]>('battles', []).slice(0, limit);
+  }
+  const { data } = await supabase.from('battles').select('*').order('battled_at', { ascending: false }).limit(limit);
+  return (data || []) as BattleRecord[];
+}
+
+export function getBattleStats(): BattleStats {
+  return getLocal<BattleStats>('battle_stats', {
+    total_battles: 0, total_wins_predicted: 0, current_streak: 0,
+    best_streak: 0, favorite_animal_id: '', most_winning_animal_id: '',
+  });
+}
+
+export function saveBattleStats(stats: BattleStats): void {
+  setLocal('battle_stats', stats);
 }

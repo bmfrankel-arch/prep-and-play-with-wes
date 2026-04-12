@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkillArea, SkillProgress, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getAllSkillProgress, getStreak, getParentSettings } from '@/lib/db';
+import { getAllSkillProgress, getStreak, getParentSettings, getAnimalCollection } from '@/lib/db';
 import { speak, shouldGreet } from '@/lib/speech';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
@@ -31,6 +31,7 @@ export default function HomePage() {
   const [wordOfDay, setWordOfDay] = useState<WordOfDay | null>(null);
   const [loading, setLoading] = useState(true);
   const [showWeeklyPrompt, setShowWeeklyPrompt] = useState(false);
+  const [animalCount, setAnimalCount] = useState(0);
 
   const hasWordOfDayUnlock = progress.some(
     p => p.skill_area === 'word_wizard' && p.unlocks_earned.includes('Word of the Day')
@@ -42,9 +43,10 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      const [p, s] = await Promise.all([getAllSkillProgress(), getStreak()]);
+      const [p, s, ac] = await Promise.all([getAllSkillProgress(), getStreak(), getAnimalCollection()]);
       setProgress(p);
       setStreak(s);
+      setAnimalCount(ac.length);
       setLoading(false);
 
       // Check scheduled assessment
@@ -204,6 +206,16 @@ export default function HomePage() {
           >
             My Animals 🦁
           </button>
+          {animalCount >= 2 ? (
+            <button
+              onClick={() => router.push('/battle')}
+              className="text-sm text-red-400 hover:text-red-300 font-bold block mx-auto"
+            >
+              BATTLE ARENA ⚔️
+            </button>
+          ) : animalCount > 0 ? (
+            <p className="text-xs text-gray-500 block mx-auto">Unlock more animals to battle!</p>
+          ) : null}
           <button
             onClick={() => router.push('/stories')}
             className="text-sm text-gray-400 hover:text-coral font-bold block mx-auto"

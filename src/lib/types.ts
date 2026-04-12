@@ -143,6 +143,31 @@ export interface AnimalUnlock {
   quiz_type_when_unlocked: string;
 }
 
+export interface BattleRecord {
+  id?: string;
+  wes_animal_id: string;
+  opponent_animal_id: string;
+  terrain: string;
+  wes_animal_score: number;
+  opponent_score: number;
+  winner_animal_id: string | null;
+  is_tie: boolean;
+  wes_prediction: string;
+  wes_predicted_correctly: boolean;
+  battle_explanation: string;
+  wes_agreed_with_result: boolean | null;
+  battled_at?: string;
+}
+
+export interface BattleStats {
+  total_battles: number;
+  total_wins_predicted: number;
+  current_streak: number;
+  best_streak: number;
+  favorite_animal_id: string;
+  most_winning_animal_id: string;
+}
+
 export interface ParentSettings {
   pronunciation_mode: boolean;
   microphone_mode: boolean;
