@@ -134,6 +134,15 @@ export interface WeeklyReport {
   generated_at?: string;
 }
 
+export interface AnimalUnlock {
+  id?: string;
+  animal_id: string;
+  rarity: string;
+  unlocked_at?: string;
+  quiz_score_when_unlocked: number;
+  quiz_type_when_unlocked: string;
+}
+
 export interface ParentSettings {
   pronunciation_mode: boolean;
   microphone_mode: boolean;

@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkillArea, SkillProgress, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getAllSkillProgress, getGameSessions, getStreak, updateSkillProgress, getSkillProgress, lockDashboard } from '@/lib/db';
+import { getAllSkillProgress, getGameSessions, getStreak, updateSkillProgress, getSkillProgress, lockDashboard, getAnimalCollection } from '@/lib/db';
+import { AnimalUnlock } from '@/lib/types';
+import { ANIMALS } from '@/data/animals';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 type Tab = 'progress' | 'assessments' | 'lessons' | 'settings';
@@ -14,6 +16,7 @@ export default function DashboardPage() {
   const [progress, setProgress] = useState<SkillProgress[]>([]);
   const [sessions, setSessions] = useState<{ skill_area: string; played_at?: string; score: number; total_questions: number }[]>([]);
   const [streak, setStreak] = useState(0);
+  const [animalCol, setAnimalCol] = useState<AnimalUnlock[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,14 +25,16 @@ export default function DashboardPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [p, s, st] = await Promise.all([
+    const [p, s, st, ac] = await Promise.all([
       getAllSkillProgress(),
       getGameSessions(7),
       getStreak(),
+      getAnimalCollection(),
     ]);
     setProgress(p);
     setSessions(s);
     setStreak(st);
+    setAnimalCol(ac);
     setLoading(false);
   };
 
@@ -233,6 +238,28 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Animal Collection */}
+            <div className="bg-white border rounded-2xl p-4">
+              <h3 className="font-bold text-navy mb-3">🦁 Animal Collection</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                {animalCol.length} of {ANIMALS.length} animals unlocked ({Math.round((animalCol.length / ANIMALS.length) * 100)}%)
+              </p>
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full" style={{ width: `${(animalCol.length / ANIMALS.length) * 100}%` }} />
+              </div>
+              <div className="flex gap-3 text-xs">
+                <span className="text-yellow-500 font-bold">🟡 {animalCol.filter(a => a.rarity === 'legendary').length} Legendary</span>
+                <span className="text-purple-500 font-bold">🟣 {animalCol.filter(a => a.rarity === 'epic').length} Epic</span>
+                <span className="text-blue-500 font-bold">🔵 {animalCol.filter(a => a.rarity === 'rare').length} Rare</span>
+                <span className="text-green-500 font-bold">🟢 {animalCol.filter(a => a.rarity === 'common').length} Common</span>
+              </div>
+              {animalCol.length > 0 && (
+                <p className="text-xs text-gray-400 mt-2">
+                  Latest: {ANIMALS.find(a => a.id === animalCol[0]?.animal_id)?.name || 'Unknown'} — {animalCol[0]?.unlocked_at ? new Date(animalCol[0].unlocked_at).toLocaleDateString() : ''}
+                </p>
               )}
             </div>
 

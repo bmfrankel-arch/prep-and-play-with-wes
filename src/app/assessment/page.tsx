@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SkillArea, AssessmentQuestion, getPerformanceBand, getPerformanceStars, SKILL_CONFIG, DifficultyLevel } from '@/lib/types';
-import { saveAssessment, getAllSkillProgress, getParentSettings } from '@/lib/db';
+import { saveAssessment, getAllSkillProgress, getParentSettings, saveAnimalUnlock, getAnimalCollection } from '@/lib/db';
+import { selectAnimal } from '@/lib/animalSelection';
+import { Animal } from '@/data/animals';
+import AnimalUnlockSequence from '@/components/AnimalUnlockSequence';
 
 const IMAGE_PHRASES = /\b(picture|image|diagram|shown below|count the objects|look at the|in the drawing|in the figure)\b/i;
 
@@ -19,7 +22,8 @@ function AssessmentContent() {
   const levelParam = parseInt(params.get('level') || '1') as DifficultyLevel;
   const isWeekly = params.get('type') === 'weekly';
 
-  const [phase, setPhase] = useState<'pin' | 'loading' | 'question' | 'pause' | 'results'>('loading');
+  const [phase, setPhase] = useState<'pin' | 'loading' | 'question' | 'pause' | 'animal_unlock' | 'results'>('loading');
+  const [unlockedAnimal, setUnlockedAnimal] = useState<Animal | null>(null);
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AssessmentQuestion[]>([]);
@@ -115,6 +119,24 @@ function AssessmentContent() {
       questions_detail: finalAnswers,
       current_level_at_time: levelParam,
     });
+
+    // Animal unlock — select based on score
+    try {
+      const collection = await getAnimalCollection();
+      const animal = selectAnimal(score, total, collection);
+      if (animal) {
+        setUnlockedAnimal(animal);
+        await saveAnimalUnlock({
+          animal_id: animal.id,
+          rarity: animal.rarity,
+          quiz_score_when_unlocked: score,
+          quiz_type_when_unlocked: isWeekly ? 'weekly' : 'standard',
+        });
+        setPhase('animal_unlock');
+        return;
+      }
+    } catch { /* continue to results */ }
+
     setPhase('results');
   };
 
@@ -156,6 +178,16 @@ function AssessmentContent() {
           <button onClick={() => router.push('/')} className="bg-navy text-white px-6 py-3 rounded-xl font-bold">Home</button>
         </div>
       </div>
+    );
+  }
+
+  // Animal unlock sequence
+  if (phase === 'animal_unlock' && unlockedAnimal) {
+    return (
+      <AnimalUnlockSequence
+        animal={unlockedAnimal}
+        onComplete={() => setPhase('results')}
+      />
     );
   }
 

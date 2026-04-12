@@ -11,6 +11,7 @@ import {
   DEFAULT_SETTINGS,
   Story,
   WeeklyReport,
+  AnimalUnlock,
 } from './types';
 
 // ── Local fallback storage for when Supabase is not configured ──
@@ -330,4 +331,28 @@ export async function getWeeklyReports(): Promise<WeeklyReport[]> {
   }
   const { data } = await supabase.from('weekly_reports').select('*').order('generated_at', { ascending: false });
   return (data || []) as WeeklyReport[];
+}
+
+// ── Animal Collection ──
+
+export async function saveAnimalUnlock(unlock: AnimalUnlock): Promise<void> {
+  const record = { ...unlock, unlocked_at: new Date().toISOString() };
+  if (!isSupabaseConfigured()) {
+    const col = getLocal<AnimalUnlock[]>('animal_collection', []);
+    if (!col.find(a => a.animal_id === unlock.animal_id)) {
+      col.push({ ...record, id: crypto.randomUUID() });
+      setLocal('animal_collection', col);
+    }
+    return;
+  }
+  const { data: existing } = await supabase.from('animal_collection').select('id').eq('animal_id', unlock.animal_id).single();
+  if (!existing) await supabase.from('animal_collection').insert(record);
+}
+
+export async function getAnimalCollection(): Promise<AnimalUnlock[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<AnimalUnlock[]>('animal_collection', []);
+  }
+  const { data } = await supabase.from('animal_collection').select('*').order('unlocked_at', { ascending: false });
+  return (data || []) as AnimalUnlock[];
 }

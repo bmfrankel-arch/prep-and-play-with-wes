@@ -187,6 +187,12 @@ export default function HomePage() {
         {/* Links */}
         <div className="text-center space-y-2">
           <button
+            onClick={() => router.push('/animals')}
+            className="text-sm text-gray-400 hover:text-coral font-bold block mx-auto"
+          >
+            My Animals 🦁
+          </button>
+          <button
             onClick={() => router.push('/stories')}
             className="text-sm text-gray-400 hover:text-coral font-bold block mx-auto"
           >

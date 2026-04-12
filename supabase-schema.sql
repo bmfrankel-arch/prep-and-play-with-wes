@@ -85,6 +85,16 @@ CREATE TABLE IF NOT EXISTS weekly_reports (
   generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Animal Collection
+CREATE TABLE IF NOT EXISTS animal_collection (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  animal_id TEXT NOT NULL,
+  rarity TEXT NOT NULL,
+  unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  quiz_score_when_unlocked INTEGER NOT NULL DEFAULT 0,
+  quiz_type_when_unlocked TEXT NOT NULL DEFAULT 'standard'
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_game_sessions_played_at ON game_sessions(played_at);
 CREATE INDEX IF NOT EXISTS idx_game_sessions_skill_area ON game_sessions(skill_area);
@@ -100,6 +110,7 @@ ALTER TABLE assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE animal_collection ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all for game_sessions" ON game_sessions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for skill_progress" ON skill_progress FOR ALL USING (true) WITH CHECK (true);
@@ -109,3 +120,4 @@ CREATE POLICY "Allow all for assessments" ON assessments FOR ALL USING (true) WI
 CREATE POLICY "Allow all for weekly_assessments" ON weekly_assessments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for stories" ON stories FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for weekly_reports" ON weekly_reports FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for animal_collection" ON animal_collection FOR ALL USING (true) WITH CHECK (true);
