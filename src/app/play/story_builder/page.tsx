@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { getSkillProgress, updateSkillProgress, saveGameSession, saveStory } from '@/lib/db';
-import { speak } from '@/lib/speech';
 import { playCorrectSound } from '@/lib/audio';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
@@ -12,7 +11,7 @@ import BadgeDisplay from '@/components/BadgeDisplay';
 
 interface WordTile {
   word: string;
-  type: 'noun' | 'verb' | 'adjective' | 'article';
+  type: string;
 }
 
 interface SentenceData {
@@ -35,6 +34,36 @@ const TYPE_COLORS: Record<string, string> = {
   adjective: 'bg-yellow-100 border-yellow-300 text-yellow-800',
   article: 'bg-gray-100 border-gray-300 text-gray-600',
 };
+
+function safeSpeakText(text: string): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = 0.85;
+    u.pitch = 1.1;
+    window.speechSynthesis.speak(u);
+  } catch {
+    // Speech not available
+  }
+}
+
+function isValidSession(data: unknown): data is StorySession {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return (
+    typeof d.theme === 'string' &&
+    typeof d.scene_description === 'string' &&
+    Array.isArray(d.sentences) &&
+    d.sentences.length > 0 &&
+    d.sentences.every((s: unknown) => {
+      if (!s || typeof s !== 'object') return false;
+      const sent = s as Record<string, unknown>;
+      return typeof sent.target_sentence === 'string' && Array.isArray(sent.word_bank);
+    })
+  );
+}
 
 export default function StoryBuilderPage() {
   const router = useRouter();
@@ -62,9 +91,40 @@ export default function StoryBuilderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skillArea: 'story_builder', subGame: 'story_builder', level: lvl, count: 1 }),
       });
+      if (!res.ok) {
+        setError('Could not load story. Please try again.');
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
-      if (data.error) { setError(data.error); setLoading(false); return; }
-      setSession(data.story);
+      if (data.error) {
+        setError(data.error);
+        setLoading(false);
+        return;
+      }
+
+      const story = data.story;
+      if (!isValidSession(story)) {
+        setError('Got an unexpected response. Tap Try Again!');
+        setLoading(false);
+        return;
+      }
+
+      // Normalize word_bank entries — ensure each has word and type
+      story.sentences = story.sentences.map((s: SentenceData) => ({
+        ...s,
+        word_bank: Array.isArray(s.word_bank)
+          ? s.word_bank.map((w: unknown) => {
+              if (typeof w === 'string') return { word: w, type: 'article' };
+              const wt = w as Record<string, unknown>;
+              return { word: String(wt.word || ''), type: String(wt.type || 'article') };
+            })
+          : [],
+        acceptable_alternatives: Array.isArray(s.acceptable_alternatives) ? s.acceptable_alternatives : [],
+        hint: s.hint || 'Try a different order!',
+      }));
+
+      setSession(story);
     } catch {
       setError('Could not load story. Check your connection.');
     }
@@ -73,32 +133,39 @@ export default function StoryBuilderPage() {
 
   useEffect(() => {
     (async () => {
-      const progress = await getSkillProgress('story_builder');
-      const lvl = progress.current_level as DifficultyLevel;
-      setLevel(lvl);
-      setConsCorrect(progress.consecutive_correct);
-      await fetchSession(lvl);
+      try {
+        const progress = await getSkillProgress('story_builder');
+        const lvl = progress.current_level as DifficultyLevel;
+        setLevel(lvl);
+        setConsCorrect(progress.consecutive_correct);
+        await fetchSession(lvl);
+      } catch {
+        setError('Something went wrong loading the game.');
+        setLoading(false);
+      }
     })();
   }, [fetchSession]);
 
+  // Auto-read scene description when session loads
   useEffect(() => {
     if (session && !loading) {
-      speak(session.scene_description);
+      safeSpeakText(session.scene_description);
     }
   }, [session, loading]);
 
-  const currentSentence = session?.sentences[sentenceIndex];
-  const availableWords = currentSentence?.word_bank.filter(
+  const currentSentence = session?.sentences?.[sentenceIndex] ?? null;
+  const wordBank = currentSentence?.word_bank ?? [];
+  const availableWords = wordBank.filter(
     w => !placedWords.find(p => p.word === w.word && p.type === w.type)
-  ) || [];
+  );
 
   const placeWord = (tile: WordTile) => {
-    setPlacedWords([...placedWords, tile]);
-    if (level === 1) speak(tile.word);
+    setPlacedWords(prev => [...prev, tile]);
+    if (level === 1) safeSpeakText(tile.word);
   };
 
   const removeWord = (index: number) => {
-    setPlacedWords(placedWords.filter((_, i) => i !== index));
+    setPlacedWords(prev => prev.filter((_, i) => i !== index));
   };
 
   const clearAll = () => setPlacedWords([]);
@@ -125,42 +192,49 @@ export default function StoryBuilderPage() {
         playCorrectSound();
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
-        speak(`Wes said: ${sentence}!`);
-        setFeedback({ valid: true, text: data.feedback });
+        safeSpeakText(`Wes said: ${sentence}!`);
+        setFeedback({ valid: true, text: data.feedback || 'Great sentence!' });
 
         const newCompleted = [...completedSentences, sentence];
         setCompletedSentences(newCompleted);
 
-        // Track progress
         const newCC = consCorrect + 1;
         setConsCorrect(newCC);
 
         if (newCC >= 3 && level < 3) {
           const next = (level + 1) as DifficultyLevel;
-          const progress = await getSkillProgress('story_builder');
-          const unlocks = [...progress.unlocks_earned];
-          const un = SKILL_CONFIG.story_builder.unlocks[next]?.name;
-          if (un && !unlocks.includes(un)) unlocks.push(un);
-          await updateSkillProgress({ ...progress, current_level: next, consecutive_correct: 0, consecutive_wrong: 0, unlocks_earned: unlocks });
-          setLevel(next); setConsCorrect(0); setNewLevel(next);
+          try {
+            const progress = await getSkillProgress('story_builder');
+            const unlocks = [...progress.unlocks_earned];
+            const un = SKILL_CONFIG.story_builder.unlocks[next]?.name;
+            if (un && !unlocks.includes(un)) unlocks.push(un);
+            await updateSkillProgress({ ...progress, current_level: next, consecutive_correct: 0, consecutive_wrong: 0, unlocks_earned: unlocks });
+          } catch { /* continue */ }
+          setLevel(next);
+          setConsCorrect(0);
+          setNewLevel(next);
           setTimeout(() => setShowLevelUp(true), 2000);
           setValidating(false);
           return;
         }
-        await updateSkillProgress({ ...(await getSkillProgress('story_builder')), consecutive_correct: newCC, consecutive_wrong: 0 });
+        try {
+          await updateSkillProgress({ ...(await getSkillProgress('story_builder')), consecutive_correct: newCC, consecutive_wrong: 0 });
+        } catch { /* continue */ }
 
         setTimeout(() => {
           setFeedback(null);
           setPlacedWords([]);
-          if (sentenceIndex + 1 >= (session?.sentences.length || 3)) {
+          const totalSentences = session?.sentences?.length ?? 3;
+          if (sentenceIndex + 1 >= totalSentences) {
             finishStory(newCompleted);
           } else {
             setSentenceIndex(i => i + 1);
           }
         }, 3000);
       } else {
-        speak(data.feedback || currentSentence.hint);
-        setFeedback({ valid: false, text: data.feedback || currentSentence.hint });
+        const hint = data.feedback || currentSentence.hint || 'Try a different order!';
+        safeSpeakText(hint);
+        setFeedback({ valid: false, text: hint });
         setTimeout(() => setFeedback(null), 3000);
       }
     } catch {
@@ -172,37 +246,57 @@ export default function StoryBuilderPage() {
 
   const finishStory = async (sentences: string[]) => {
     setStoryComplete(true);
-    await saveGameSession({ skill_area: 'story_builder', sub_game: 'story_builder', score: sentences.length, total_questions: 3, child_name: 'Wes' });
-    await saveStory({ theme: session?.theme || '', sentences, word_banks_used: session?.sentences.map(s => s.word_bank) });
+    try {
+      await saveGameSession({ skill_area: 'story_builder', sub_game: 'story_builder', score: sentences.length, total_questions: 3, child_name: 'Wes' });
+      await saveStory({ theme: session?.theme || '', sentences, word_banks_used: session?.sentences?.map(s => s.word_bank) ?? [] });
+    } catch { /* continue */ }
     setTimeout(() => {
-      const fullStory = sentences.join('. ') + '.';
-      speak(`Here is Wes's story. ${fullStory}`);
+      safeSpeakText(`Here is Wes's story. ${sentences.join('. ')}.`);
     }, 1000);
   };
 
   if (showLevelUp) {
-    return <LevelUpSequence skillArea="story_builder" newLevel={newLevel} onComplete={() => {
-      setShowLevelUp(false);
-      setPlacedWords([]);
-      if (sentenceIndex + 1 >= (session?.sentences.length || 3)) {
-        finishStory(completedSentences);
-      } else {
-        setSentenceIndex(i => i + 1);
-      }
-    }} />;
+    return (
+      <LevelUpSequence
+        skillArea="story_builder"
+        newLevel={newLevel}
+        onComplete={() => {
+          setShowLevelUp(false);
+          setPlacedWords([]);
+          const totalSentences = session?.sentences?.length ?? 3;
+          if (sentenceIndex + 1 >= totalSentences) {
+            finishStory(completedSentences);
+          } else {
+            setSentenceIndex(i => i + 1);
+          }
+        }}
+      />
+    );
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="text-6xl animate-bounce">📝</div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl animate-bounce mb-4">📝</div>
+          <p className="text-2xl font-bold text-navy">Creating your story...</p>
+          <p className="text-gray-500 mt-2">This may take a moment</p>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="bg-white rounded-3xl p-8 text-center shadow-xl">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-xl">
           <p className="text-5xl mb-4">😕</p>
+          <h2 className="text-2xl font-bold text-navy mb-2">Something went wrong</h2>
           <p className="text-gray-600 mb-6">{error}</p>
-          <button onClick={() => fetchSession(level)} className="game-btn bg-grass text-white px-6">Try Again</button>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => fetchSession(level)} className="game-btn bg-grass text-white px-6">Try Again</button>
+            <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+          </div>
         </div>
       </div>
     );
@@ -215,15 +309,15 @@ export default function StoryBuilderPage() {
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-xl">
           <p className="text-6xl mb-4">🌟</p>
           <h2 className="text-3xl font-extrabold text-navy mb-2">Wes wrote a story!</h2>
-          <div className="text-4xl mb-4">{session?.scene_emoji}</div>
-          <p className="text-sm font-bold text-coral mb-4">{session?.theme}</p>
+          <div className="text-4xl mb-4">{session?.scene_emoji || '📝'}</div>
+          <p className="text-sm font-bold text-coral mb-4">{session?.theme || ''}</p>
           <div className="bg-sunshine/10 rounded-2xl p-4 mb-6 text-left">
             {completedSentences.map((s, i) => (
               <p key={i} className="text-lg text-navy mb-2">{s}.</p>
             ))}
           </div>
           <div className="flex gap-3 justify-center flex-wrap">
-            <button onClick={() => speak(completedSentences.join('. ') + '.')} className="game-btn bg-coral text-white px-6">🔊 Read Aloud</button>
+            <button onClick={() => safeSpeakText(completedSentences.join('. ') + '.')} className="game-btn bg-coral text-white px-6">🔊 Read Aloud</button>
             <button onClick={() => router.push('/stories')} className="game-btn bg-navy text-white px-6">My Stories</button>
             <button onClick={() => { setSentenceIndex(0); setCompletedSentences([]); setStoryComplete(false); fetchSession(level); }} className="game-btn bg-grass text-white px-6">New Story!</button>
             <button onClick={() => router.push('/')} className="game-btn bg-gray-200 text-navy px-6">Home</button>
@@ -233,7 +327,20 @@ export default function StoryBuilderPage() {
     );
   }
 
-  if (!session || !currentSentence) return null;
+  if (!session || !currentSentence) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-xl">
+          <p className="text-5xl mb-4">😕</p>
+          <h2 className="text-2xl font-bold text-navy mb-2">No story loaded</h2>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => fetchSession(level)} className="game-btn bg-grass text-white px-6">Try Again</button>
+            <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4 md:p-6">
@@ -250,14 +357,14 @@ export default function StoryBuilderPage() {
 
       {/* Theme */}
       <div className="text-center mb-4">
-        <p className="text-4xl mb-2">{session.scene_emoji}</p>
+        <p className="text-4xl mb-2">{session.scene_emoji || '📝'}</p>
         <p className="text-lg font-bold text-navy">{session.theme}</p>
         <p className="text-sm text-gray-500">Sentence {sentenceIndex + 1} of {session.sentences.length}</p>
       </div>
 
       {/* Speaker */}
       <div className="flex justify-center mb-3">
-        <button onClick={() => speak(session.scene_description)} className="text-3xl active:scale-90">🔊</button>
+        <button onClick={() => safeSpeakText(session.scene_description)} className="text-3xl active:scale-90 transition-transform">🔊</button>
       </div>
 
       {/* Completed sentences */}
@@ -277,7 +384,7 @@ export default function StoryBuilderPage() {
           )}
           {placedWords.map((w, i) => (
             <button
-              key={i}
+              key={`placed-${i}`}
               onClick={() => removeWord(i)}
               className="bg-green-50 border-2 border-green-300 text-green-800 px-4 py-2 rounded-xl font-bold text-lg active:scale-95 transition-transform"
             >
@@ -292,7 +399,7 @@ export default function StoryBuilderPage() {
         <div className="flex flex-wrap gap-2 justify-center">
           {availableWords.map((w, i) => (
             <button
-              key={i}
+              key={`bank-${i}-${w.word}`}
               onClick={() => placeWord(w)}
               className={`px-5 py-3 rounded-xl font-bold text-lg border-2 active:scale-95 transition-transform min-h-[52px] ${TYPE_COLORS[w.type] || TYPE_COLORS.article}`}
             >

@@ -236,21 +236,24 @@ Return ONLY valid JSON object (not array), no markdown.`,
     // Parse JSON from response, handling potential markdown wrapping
     let parsed;
     try {
-      // Try array first, then object
-      const arrayMatch = text.match(/\[[\s\S]*\]/);
-      const objMatch = text.match(/\{[\s\S]*\}/);
-      if (arrayMatch) {
-        parsed = JSON.parse(arrayMatch[0]);
-      } else if (objMatch) {
-        parsed = JSON.parse(objMatch[0]);
+      if (skillArea === 'story_builder') {
+        // Story builder returns a single object — find the outermost { }
+        const objMatch = text.match(/\{[\s\S]*\}/);
+        parsed = objMatch ? JSON.parse(objMatch[0]) : JSON.parse(text);
       } else {
-        parsed = JSON.parse(text);
+        // All other modes return arrays
+        const arrayMatch = text.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          parsed = JSON.parse(arrayMatch[0]);
+        } else {
+          const objMatch = text.match(/\{[\s\S]*\}/);
+          parsed = objMatch ? JSON.parse(objMatch[0]) : JSON.parse(text);
+        }
       }
     } catch {
       return NextResponse.json({ error: 'Failed to parse AI response', raw: text }, { status: 500 });
     }
 
-    // Wrap single objects in array for consistency, except story_builder
     if (skillArea === 'story_builder') {
       return NextResponse.json({ story: parsed });
     }

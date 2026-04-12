@@ -90,11 +90,14 @@ export default function GameShell({
 
   // Auto-read question aloud
   useEffect(() => {
-    if (!loading && questions[currentIndex] && settings.auto_read_questions) {
+    const autoRead = settings.auto_read_questions !== false; // default true
+    if (!loading && questions[currentIndex] && autoRead) {
       const q = questions[currentIndex];
-      const text = q.clues ? q.clues.join('. ') : q.story || q.scenario || q.emoji_pattern || q.question;
-      const timer = setTimeout(() => speak(text), 500);
-      return () => { clearTimeout(timer); stopSpeaking(); };
+      const text = q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '';
+      if (text) {
+        const timer = setTimeout(() => speak(text), 500);
+        return () => { clearTimeout(timer); stopSpeaking(); };
+      }
     }
   }, [currentIndex, loading, questions, settings.auto_read_questions]);
 
@@ -414,8 +417,9 @@ export default function GameShell({
         <button
           onClick={() => {
             const q = questions[currentIndex];
-            const text = q?.clues ? q.clues.join('. ') : q?.story || q?.scenario || q?.question || '';
-            speak(text);
+            if (!q) return;
+            const text = q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '';
+            if (text) speak(text);
           }}
           className="text-4xl active:scale-90 transition-transform"
           aria-label="Read aloud"
