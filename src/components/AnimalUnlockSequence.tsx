@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Animal, AnimalRarity, RARITY_COLORS, RARITY_LABELS } from '@/data/animals';
+import { speakAnimal, speakCelebration } from '@/lib/speech';
 import Confetti from './Confetti';
 
 interface AnimalUnlockSequenceProps {
@@ -42,19 +43,22 @@ export default function AnimalUnlockSequence({ animal, onComplete }: AnimalUnloc
       setTimeout(() => setPhase('card_front'), 3200),
       setTimeout(() => {
         setShowConfetti(true);
-        // TTS
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          try {
-            const u = new SpeechSynthesisUtterance(animal.ttsText);
-            u.lang = 'en-US'; u.rate = 0.9; u.pitch = 1.1;
-            window.speechSynthesis.speak(u);
-          } catch { /* ok */ }
-        }
+        speakAnimal(animal.ttsText);
       }, 3800),
-      setTimeout(() => setPhase('done'), 4200),
+      setTimeout(() => {
+        // Rarity announcement
+        const rarityMsg: Record<AnimalRarity, string> = {
+          legendary: 'A LEGENDARY animal! Incredible, Wes!',
+          epic: 'An EPIC animal! Brilliant!',
+          rare: 'A RARE animal! Well done!',
+          common: 'A new animal for your collection!',
+        };
+        speakCelebration(rarityMsg[animal.rarity]);
+        setPhase('done');
+      }, 5500),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [animal.ttsText]);
+  }, [animal.ttsText, animal.rarity]);
 
   const rarityColor = RARITY_COLORS[animal.rarity];
 

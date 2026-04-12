@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SkillArea, SubGame, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES, GameQuestion } from '@/lib/types';
 import { getSkillProgress, updateSkillProgress, saveGameSession, saveWord, getParentSettings } from '@/lib/db';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
-import { speak, stopSpeaking } from '@/lib/speech';
+import { speakQuestion, speakChoices, stopSpeaking, shouldAutoRead, shouldReadChoices } from '@/lib/speech';
 import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
 import PronunciationChallenge from './PronunciationChallenge';
@@ -96,19 +96,24 @@ export default function GameShell({
     }
   }, [feedback]);
 
-  // Auto-read question aloud
+  // Auto-read question aloud (British accent via centralized TTS)
   useEffect(() => {
-    const autoRead = settings.auto_read_questions !== false; // default true
-    if (!loading && questions[currentIndex] && autoRead) {
+    if (!loading && questions[currentIndex] && shouldAutoRead()) {
       const q = questions[currentIndex];
-      // Use tts_reading if available (e.g. algebra equations), otherwise fall back
       const text = q.tts_reading || (q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '');
       if (text) {
-        const timer = setTimeout(() => speak(text), 500);
+        const timer = setTimeout(() => {
+          speakQuestion(text, () => {
+            // After reading question, read choices if enabled
+            if (shouldReadChoices() && q.choices?.length) {
+              speakChoices(q.choices);
+            }
+          });
+        }, 500);
         return () => { clearTimeout(timer); stopSpeaking(); };
       }
     }
-  }, [currentIndex, loading, questions, settings.auto_read_questions]);
+  }, [currentIndex, loading, questions]);
 
   const handleAnswer = async (answer: string) => {
     const question = questions[currentIndex];
@@ -428,9 +433,11 @@ export default function GameShell({
             const q = questions[currentIndex];
             if (!q) return;
             const text = q.tts_reading || (q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '');
-            if (text) speak(text);
+            if (text) speakQuestion(text, () => {
+              if (q.choices?.length) speakChoices(q.choices);
+            });
           }}
-          className="text-4xl active:scale-90 transition-transform"
+          className="min-w-[52px] min-h-[52px] text-4xl active:scale-125 transition-transform focus:outline-none"
           aria-label="Read aloud"
         >
           🔊

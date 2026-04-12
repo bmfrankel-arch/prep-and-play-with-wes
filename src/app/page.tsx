@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkillArea, SkillProgress, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
 import { getAllSkillProgress, getStreak, getParentSettings } from '@/lib/db';
+import { speak, shouldGreet } from '@/lib/speech';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 interface WordOfDay {
@@ -67,6 +68,17 @@ export default function HomePage() {
         .catch(() => {});
     }
   }, [hasWordOfDayUnlock]);
+
+  // British greeting on home screen — once per session
+  useEffect(() => {
+    if (!loading && shouldGreet()) {
+      const greeted = sessionStorage.getItem('ppw_greeted');
+      if (!greeted) {
+        sessionStorage.setItem('ppw_greeted', '1');
+        setTimeout(() => speak('Hello Wes! What shall we practise today?', { rate: 0.9, pitch: 1.1 }), 1000);
+      }
+    }
+  }, [loading]);
 
   if (loading) {
     return (

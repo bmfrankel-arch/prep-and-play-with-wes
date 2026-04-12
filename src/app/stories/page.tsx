@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStories } from '@/lib/db';
 import { Story } from '@/lib/types';
-import { speak } from '@/lib/speech';
+import { speakStory } from '@/lib/speech';
 
 export default function StoriesPage() {
   const router = useRouter();
@@ -44,7 +44,7 @@ export default function StoriesPage() {
                     <p className="text-xs text-gray-400">{s.completed_at ? new Date(s.completed_at).toLocaleDateString() : ''}</p>
                   </div>
                   <button
-                    onClick={() => speak(s.sentences.join('. ') + '.')}
+                    onClick={() => speakStory(s.sentences.join('. ') + '.')}
                     className="text-3xl active:scale-90"
                   >
                     🔊

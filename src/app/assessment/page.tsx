@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SkillArea, AssessmentQuestion, getPerformanceBand, getPerformanceStars, SKILL_CONFIG, DifficultyLevel } from '@/lib/types';
 import { saveAssessment, getAllSkillProgress, getParentSettings, saveAnimalUnlock, getAnimalCollection } from '@/lib/db';
+import { speakQuestion, speakChoices, speakCelebration, shouldAutoRead } from '@/lib/speech';
 import { selectAnimal } from '@/lib/animalSelection';
 import { Animal } from '@/data/animals';
 import AnimalUnlockSequence from '@/components/AnimalUnlockSequence';
@@ -69,6 +70,23 @@ function AssessmentContent() {
       fetchQuestions();
     }
   }, [settings.require_pin, fetchQuestions]);
+
+  // Read score aloud when results phase loads
+  useEffect(() => {
+    if (phase === 'results' && answers.length > 0) {
+      const sc = answers.filter(a => a.is_correct).length;
+      speakCelebration(`Well done, Wes! You got ${sc} out of ${answers.length} correct!`);
+    }
+  }, [phase, answers]);
+
+  // Auto-read assessment questions with British voice
+  useEffect(() => {
+    if (phase === 'question' && questions[currentIndex] && shouldAutoRead()) {
+      const qn = questions[currentIndex];
+      const timer = setTimeout(() => speakQuestion(qn.question, () => speakChoices(qn.choices)), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentIndex, phase, questions]);
 
   const handlePinSubmit = () => {
     if (pinInput === settings.parent_pin) {

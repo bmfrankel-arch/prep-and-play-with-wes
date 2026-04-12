@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { getSkillProgress, updateSkillProgress, saveGameSession, saveStory } from '@/lib/db';
 import { playCorrectSound } from '@/lib/audio';
+import { speak, speakWord, speakStory, speakCelebration } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 import BadgeDisplay from '@/components/BadgeDisplay';
@@ -35,19 +36,7 @@ const TYPE_COLORS: Record<string, string> = {
   article: 'bg-gray-100 border-gray-300 text-gray-600',
 };
 
-function safeSpeakText(text: string): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return;
-  try {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.rate = 0.85;
-    u.pitch = 1.1;
-    window.speechSynthesis.speak(u);
-  } catch {
-    // Speech not available
-  }
-}
+// safeSpeakText replaced by centralized speech.ts imports
 
 function isValidSession(data: unknown): data is StorySession {
   if (!data || typeof data !== 'object') return false;
@@ -150,7 +139,7 @@ export default function StoryBuilderPage() {
   // Auto-read scene description when session loads
   useEffect(() => {
     if (session && !loading) {
-      safeSpeakText(session.scene_description);
+      speak(session.scene_description);
     }
   }, [session, loading]);
 
@@ -162,7 +151,7 @@ export default function StoryBuilderPage() {
 
   const placeWord = (tile: WordTile) => {
     setPlacedWords(prev => [...prev, tile]);
-    if (level === 1) safeSpeakText(tile.word);
+    if (level === 1) speakWord(tile.word);
   };
 
   const removeWord = (index: number) => {
@@ -175,7 +164,7 @@ export default function StoryBuilderPage() {
     playCorrectSound();
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 3000);
-    safeSpeakText(`Wes said: ${sentence}!`);
+    speakCelebration(`Wes said: ${sentence}!`);
     setFeedback({ valid: true, text: 'Great sentence, Wes! 🌟' });
     setFailCount(0);
 
@@ -251,7 +240,7 @@ export default function StoryBuilderPage() {
       } else {
         // Invalid sentence — show hint but don't reset words
         const hint = data.feedback || currentSentence.hint || 'Try a different order!';
-        safeSpeakText(hint);
+        speak(hint);
         setFeedback({ valid: false, text: hint });
         setFailCount(newFailCount);
         setValidating(false);
@@ -283,7 +272,7 @@ export default function StoryBuilderPage() {
       await saveStory({ theme: session?.theme || '', sentences, word_banks_used: session?.sentences?.map(s => s.word_bank) ?? [] });
     } catch { /* continue */ }
     setTimeout(() => {
-      safeSpeakText(`Here is Wes's story. ${sentences.join('. ')}.`);
+      speakStory(`Here is Wes's story. ${sentences.join('. ')}.`);
     }, 1000);
   };
 
@@ -349,7 +338,7 @@ export default function StoryBuilderPage() {
             ))}
           </div>
           <div className="flex gap-3 justify-center flex-wrap">
-            <button onClick={() => safeSpeakText(completedSentences.join('. ') + '.')} className="game-btn bg-coral text-white px-6">🔊 Read Aloud</button>
+            <button onClick={() => speakStory(completedSentences.join('. ') + '.')} className="game-btn bg-coral text-white px-6">🔊 Read Aloud</button>
             <button onClick={() => router.push('/stories')} className="game-btn bg-navy text-white px-6">My Stories</button>
             <button onClick={() => { setSentenceIndex(0); setCompletedSentences([]); setStoryComplete(false); fetchSession(level); }} className="game-btn bg-grass text-white px-6">New Story!</button>
             <button onClick={() => router.push('/')} className="game-btn bg-gray-200 text-navy px-6">Home</button>
@@ -396,7 +385,7 @@ export default function StoryBuilderPage() {
 
       {/* Speaker */}
       <div className="flex justify-center mb-3">
-        <button onClick={() => safeSpeakText(session.scene_description)} className="text-3xl active:scale-90 transition-transform">🔊</button>
+        <button onClick={() => speak(session.scene_description)} className="text-3xl active:scale-90 transition-transform">🔊</button>
       </div>
 
       {/* Completed sentences */}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getAnimalCollection } from '@/lib/db';
 import { AnimalUnlock } from '@/lib/types';
 import { ANIMALS, Animal, AnimalRarity, RARITY_COLORS, RARITY_LABELS, RARITY_ORDER } from '@/data/animals';
+import { speak } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 
 type SortMode = 'rarity' | 'date' | 'name';
@@ -59,14 +60,7 @@ export default function AnimalsPage() {
     const entry = collection.find(c => c.animal_id === animal.id);
     setSelected(animal);
     setSelectedDate(entry?.unlocked_at ? new Date(entry.unlocked_at).toLocaleDateString() : '');
-    // TTS
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        const u = new SpeechSynthesisUtterance(animal.funFact);
-        u.lang = 'en-US'; u.rate = 0.85; u.pitch = 1.1;
-        window.speechSynthesis.speak(u);
-      } catch { /* ok */ }
-    }
+    speak(animal.funFact, { rate: 0.85, pitch: 1.05 });
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-6xl animate-bounce">🦁</div></div>;

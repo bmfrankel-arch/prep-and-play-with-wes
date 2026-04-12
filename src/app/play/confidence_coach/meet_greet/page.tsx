@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound } from '@/lib/audio';
+import { speakQuestion, speakCelebration } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 
@@ -52,9 +53,17 @@ export default function MeetGreetPage() {
     })();
   }, [fetchScenarios]);
 
+  // Auto-read scenario when it changes
+  useEffect(() => {
+    if (phase === 'scenario' && scenarios[currentIndex]) {
+      setTimeout(() => speakQuestion(scenarios[currentIndex].scenario), 500);
+    }
+  }, [phase, currentIndex, scenarios]);
+
   const handleResponse = async (great: boolean) => {
     if (great) {
       playCorrectSound();
+      speakCelebration("Brilliant, Wes! You're brilliant at meeting new people!");
       setScore(s => s + 1);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 2000);

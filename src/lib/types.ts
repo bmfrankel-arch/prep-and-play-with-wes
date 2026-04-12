@@ -152,6 +152,10 @@ export interface ParentSettings {
   parent_pin: string;
   scheduled_assessment_day: string | null;
   auto_read_questions: boolean;
+  tts_voice: 'british' | 'american';
+  tts_speed: 'slow' | 'normal' | 'fast';
+  tts_read_choices: boolean;
+  tts_greeting: boolean;
 }
 
 export const DEFAULT_SETTINGS: ParentSettings = {
@@ -163,6 +167,10 @@ export const DEFAULT_SETTINGS: ParentSettings = {
   parent_pin: '0000',
   scheduled_assessment_day: null,
   auto_read_questions: true,
+  tts_voice: 'british',
+  tts_speed: 'normal',
+  tts_read_choices: true,
+  tts_greeting: true,
 };
 
 export const SKILL_CONFIG: Record<SkillArea, {
