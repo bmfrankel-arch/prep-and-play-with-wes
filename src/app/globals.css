@@ -2,26 +2,127 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Press+Start+2P&display=swap');
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #f0f4ff;
+  --foreground: #1B2A4A;
 }
 
 body {
-  color: var(--foreground);
+  font-family: 'Nunito', sans-serif;
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--foreground);
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+.game-btn {
+  @apply min-h-[80px] min-w-[80px] text-2xl font-bold rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer;
+}
+
+.confetti-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  animation: confettiDrop 1.5s ease-out forwards;
+}
+
+@keyframes confettiDrop {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
   }
 }
+
+.level-up-flash {
+  animation: levelFlash 0.15s ease-in-out 3;
+}
+
+@keyframes levelFlash {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: white; }
+}
+
+.badge-glow-gray {
+  box-shadow: 0 0 8px rgba(156, 163, 175, 0.5);
+  border: 3px solid #9CA3AF;
+}
+.badge-glow-blue {
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+  border: 3px solid #3B82F6;
+}
+.badge-glow-gold {
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+  border: 3px solid #FFD700;
+  animation: badgeGoldPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badgeGoldPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
+  50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.9); }
+}
+
+.xp-bar {
+  background: linear-gradient(90deg, #FFD700, #FFA500);
+  border-radius: 999px;
+  height: 100%;
+  transition: width 1.5s ease-out;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body {
+    background: white !important;
+    color: black !important;
+    font-family: 'Nunito', sans-serif;
+  }
+  .print-only { display: block !important; }
+  .print-break { page-break-before: always; }
+}
+
+.assessment-mode {
+  background: white;
+  color: #1B2A4A;
+  font-family: 'Nunito', sans-serif;
+}
+
+.assessment-choice {
+  @apply border-2 border-gray-200 rounded-xl p-4 text-lg font-semibold cursor-pointer transition-all;
+}
+.assessment-choice:hover {
+  @apply border-blue-900 bg-gray-50;
+}
+
+.mic-recording {
+  animation: micPulse 1s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(239, 71, 111, 0.7);
+}
+
+@keyframes micPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 71, 111, 0.7); }
+  70% { box-shadow: 0 0 0 20px rgba(239, 71, 111, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 71, 111, 0); }
+}
+
+.star-filled { color: #FFD700; }
+.star-empty { color: #D1D5DB; }

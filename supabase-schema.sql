@@ -1,0 +1,88 @@
+-- Prep & Play with Wes — Supabase Schema
+-- Run this SQL in your Supabase project's SQL Editor
+
+-- Enable UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Game Sessions
+CREATE TABLE IF NOT EXISTS game_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  skill_area TEXT NOT NULL,
+  sub_game TEXT NOT NULL,
+  score INTEGER NOT NULL DEFAULT 0,
+  total_questions INTEGER NOT NULL DEFAULT 0,
+  played_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  child_name TEXT NOT NULL DEFAULT 'Wes'
+);
+
+-- Skill Progress
+CREATE TABLE IF NOT EXISTS skill_progress (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  skill_area TEXT UNIQUE NOT NULL,
+  current_level INTEGER NOT NULL DEFAULT 1,
+  consecutive_correct INTEGER NOT NULL DEFAULT 0,
+  consecutive_wrong INTEGER NOT NULL DEFAULT 0,
+  last_played TIMESTAMPTZ,
+  unlocks_earned TEXT[] NOT NULL DEFAULT '{}'
+);
+
+-- Lesson Plans
+CREATE TABLE IF NOT EXISTS lesson_plans (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  focus_areas TEXT[] NOT NULL,
+  plan_content JSONB NOT NULL
+);
+
+-- Word Collection
+CREATE TABLE IF NOT EXISTS word_collection (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  word TEXT NOT NULL,
+  definition TEXT,
+  example_sentence TEXT,
+  syllable_breakdown TEXT,
+  mastered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Assessments
+CREATE TABLE IF NOT EXISTS assessments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  assessment_type TEXT NOT NULL DEFAULT 'standard',
+  skill_area TEXT,
+  score INTEGER NOT NULL DEFAULT 0,
+  total_questions INTEGER NOT NULL DEFAULT 0,
+  performance_band TEXT,
+  questions_detail JSONB,
+  current_level_at_time INTEGER NOT NULL DEFAULT 1,
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Weekly Assessments
+CREATE TABLE IF NOT EXISTS weekly_assessments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  scores_by_skill JSONB,
+  total_score INTEGER NOT NULL DEFAULT 0,
+  performance_band TEXT,
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_game_sessions_played_at ON game_sessions(played_at);
+CREATE INDEX IF NOT EXISTS idx_game_sessions_skill_area ON game_sessions(skill_area);
+CREATE INDEX IF NOT EXISTS idx_assessments_completed_at ON assessments(completed_at);
+CREATE INDEX IF NOT EXISTS idx_word_collection_word ON word_collection(word);
+
+-- Row Level Security (allow all for anon key — single-family app)
+ALTER TABLE game_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE skill_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE word_collection ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_assessments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all for game_sessions" ON game_sessions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for skill_progress" ON skill_progress FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for lesson_plans" ON lesson_plans FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for word_collection" ON word_collection FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for assessments" ON assessments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for weekly_assessments" ON weekly_assessments FOR ALL USING (true) WITH CHECK (true);
