@@ -66,6 +66,25 @@ CREATE TABLE IF NOT EXISTS weekly_assessments (
   completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Stories
+CREATE TABLE IF NOT EXISTS stories (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  theme TEXT NOT NULL,
+  sentences TEXT[] NOT NULL DEFAULT '{}',
+  word_banks_used JSONB,
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  parent_rating BOOLEAN
+);
+
+-- Weekly Reports
+CREATE TABLE IF NOT EXISTS weekly_reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  week_start DATE NOT NULL,
+  week_end DATE NOT NULL,
+  report_data JSONB NOT NULL,
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_game_sessions_played_at ON game_sessions(played_at);
 CREATE INDEX IF NOT EXISTS idx_game_sessions_skill_area ON game_sessions(skill_area);
@@ -79,6 +98,8 @@ ALTER TABLE lesson_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE word_collection ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all for game_sessions" ON game_sessions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for skill_progress" ON skill_progress FOR ALL USING (true) WITH CHECK (true);
@@ -86,3 +107,5 @@ CREATE POLICY "Allow all for lesson_plans" ON lesson_plans FOR ALL USING (true) 
 CREATE POLICY "Allow all for word_collection" ON word_collection FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for assessments" ON assessments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for weekly_assessments" ON weekly_assessments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for stories" ON stories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for weekly_reports" ON weekly_reports FOR ALL USING (true) WITH CHECK (true);

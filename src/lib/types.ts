@@ -1,11 +1,12 @@
-export type SkillArea = 'word_wizard' | 'pattern_detective' | 'memory_master' | 'math_explorer' | 'confidence_coach';
+export type SkillArea = 'word_wizard' | 'pattern_detective' | 'memory_master' | 'math_explorer' | 'confidence_coach' | 'story_builder';
 
 export type SubGame =
   | 'riddles' | 'story_finish' | 'word_categories'
   | 'shape_sequences' | 'size_color_sorting' | 'odd_one_out'
   | 'remember_list' | 'order_recall' | 'story_details'
   | 'counting_adventures' | 'more_or_less' | 'algebra_puzzles'
-  | 'meet_greet' | 'what_would_you_do' | 'i_dont_know';
+  | 'meet_greet' | 'what_would_you_do' | 'i_dont_know'
+  | 'story_builder';
 
 export type DifficultyLevel = 1 | 2 | 3;
 export type LevelName = 'Explorer' | 'Adventurer' | 'Champion';
@@ -115,6 +116,23 @@ export interface GameQuestion {
   require_order?: boolean;
 }
 
+export interface Story {
+  id?: string;
+  theme: string;
+  sentences: string[];
+  word_banks_used: unknown;
+  completed_at?: string;
+  parent_rating?: boolean | null;
+}
+
+export interface WeeklyReport {
+  id?: string;
+  week_start: string;
+  week_end: string;
+  report_data: unknown;
+  generated_at?: string;
+}
+
 export interface ParentSettings {
   pronunciation_mode: boolean;
   microphone_mode: boolean;
@@ -123,6 +141,7 @@ export interface ParentSettings {
   require_pin: boolean;
   parent_pin: string;
   scheduled_assessment_day: string | null;
+  auto_read_questions: boolean;
 }
 
 export const DEFAULT_SETTINGS: ParentSettings = {
@@ -133,6 +152,7 @@ export const DEFAULT_SETTINGS: ParentSettings = {
   require_pin: false,
   parent_pin: '0000',
   scheduled_assessment_day: null,
+  auto_read_questions: true,
 };
 
 export const SKILL_CONFIG: Record<SkillArea, {
@@ -210,6 +230,20 @@ export const SKILL_CONFIG: Record<SkillArea, {
     unlocks: {
       2: { name: 'My Scripts', description: "Saves Wes's best spoken answers so he can review them before school visits" },
       3: { name: 'Star Student', description: 'A permanent gold star badge displayed on the home screen and dashboard forever' },
+    },
+  },
+  story_builder: {
+    label: 'Story Builder',
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-500',
+    badges: {
+      1: '📝',
+      2: '📝🌟',
+      3: '📝🌟🎭',
+    },
+    unlocks: {
+      2: { name: 'Story Themes', description: 'Wes can pick his own theme from a list of 10 options' },
+      3: { name: 'My Stories Hall of Fame', description: 'His 3 best-rated stories displayed permanently on a special page' },
     },
   },
 };

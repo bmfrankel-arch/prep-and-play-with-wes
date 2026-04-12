@@ -1,7 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { VOCABULARY_BANK } from '@/data/vocabulary';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function getVocabSample(level: number, count: number = 15): string {
+  const eligible = VOCABULARY_BANK.filter(w => w.difficulty_level <= level);
+  const shuffled = eligible.sort(() => Math.random() - 0.5).slice(0, count);
+  return shuffled.map(w => `${w.word} (${w.syllable_breakdown}) — ${w.child_friendly_definition}`).join('\n');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +26,11 @@ For each riddle, return JSON array with objects containing:
 - "definition": a simple one-sentence child-friendly definition
 - "example_sentence": a simple sentence using the word
 
-Make clues fun, clear, and age-appropriate. Topics: animals, food, weather, household items, nature, toys.
+Make clues fun, clear, and age-appropriate.
+
+IMPORTANT: Prefer using words from this CATS-tuned vocabulary bank:
+${getVocabSample(level, 10)}
+
 Return ONLY valid JSON array, no markdown.`,
 
         story_finish: `Generate ${count} story completion exercise(s) for a 5-year-old at ${level === 1 ? 'beginner' : level === 2 ? 'intermediate' : 'advanced'} level.
@@ -45,7 +56,9 @@ For each, return JSON array with objects containing:
 - "definition": simple definition of the odd-one-out word
 - "example_sentence": example sentence using the odd-one-out word
 
-Categories: fruits, animals, colors, vehicles, clothing, body parts, weather.
+Use words from this CATS-tuned vocabulary bank when possible:
+${getVocabSample(level, 10)}
+
 Return ONLY valid JSON array, no markdown.`,
       },
 
@@ -188,6 +201,23 @@ For each, return JSON array with objects containing:
 Questions can be about science, geography, big numbers, or unusual facts.
 Return ONLY valid JSON array, no markdown.`,
       },
+
+      story_builder: {
+        story_builder: `Generate a Story Builder session for a 5-year-old at ${level === 1 ? 'Level 1: 6 words in bank (4 needed + 2 distractors). Simple subject-verb-object sentences like "The dog runs fast". Only nouns, verbs, and one adjective.' : level === 2 ? 'Level 2: 8 words in bank (5 needed + 3 distractors). Sentences with adjectives and simple prepositions like "The big dog runs in the park". Multiple arrangements might work.' : 'Level 3: 10 words in bank (6-7 needed + 3-4 distractors). Complex sentences with conjunctions like "The brave dog found a bone and ran home". Multiple valid sentences accepted.'}.
+
+Return a JSON object with:
+- "theme": a fun story theme (e.g. "A brave dog goes on an adventure in the forest")
+- "scene_description": 1-2 sentence scene setter to read aloud
+- "scene_emoji": 2-3 relevant emojis
+- "sentences": array of 3 objects, each with:
+  - "target_sentence": the intended correct sentence
+  - "word_bank": array of objects with "word" and "type" (noun/verb/adjective/article)
+  - "acceptable_alternatives": array of other valid sentence arrangements
+  - "hint": gentle hint if the child struggles
+
+Make themes fun and child-friendly: animals, space, underwater, playground, magical forest.
+Return ONLY valid JSON object (not array), no markdown.`,
+      },
     };
 
     const prompt = prompts[skillArea]?.[subGame];
@@ -206,13 +236,25 @@ Return ONLY valid JSON array, no markdown.`,
     // Parse JSON from response, handling potential markdown wrapping
     let parsed;
     try {
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+      // Try array first, then object
+      const arrayMatch = text.match(/\[[\s\S]*\]/);
+      const objMatch = text.match(/\{[\s\S]*\}/);
+      if (arrayMatch) {
+        parsed = JSON.parse(arrayMatch[0]);
+      } else if (objMatch) {
+        parsed = JSON.parse(objMatch[0]);
+      } else {
+        parsed = JSON.parse(text);
+      }
     } catch {
       return NextResponse.json({ error: 'Failed to parse AI response', raw: text }, { status: 500 });
     }
 
-    return NextResponse.json({ questions: parsed });
+    // Wrap single objects in array for consistency, except story_builder
+    if (skillArea === 'story_builder') {
+      return NextResponse.json({ story: parsed });
+    }
+    return NextResponse.json({ questions: Array.isArray(parsed) ? parsed : [parsed] });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(

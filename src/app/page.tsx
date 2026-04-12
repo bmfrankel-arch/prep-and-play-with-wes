@@ -20,6 +20,7 @@ const GAME_MODES: { skill: SkillArea; label: string; emoji: string; desc: string
   { skill: 'memory_master', label: 'Memory Master', emoji: '🧠', desc: 'Memory & Recall', colors: 'from-purple-500 to-violet-400' },
   { skill: 'math_explorer', label: 'Math Explorer', emoji: '🔢', desc: 'Numbers & Math', colors: 'from-sunshine to-amber-400' },
   { skill: 'confidence_coach', label: 'Confidence Coach', emoji: '🎤', desc: 'Social Skills', colors: 'from-navy to-blue-500' },
+  { skill: 'story_builder', label: 'Story Builder', emoji: '📝', desc: 'Build Sentences!', colors: 'from-orange-500 to-red-400' },
 ];
 
 export default function HomePage() {
@@ -36,7 +37,7 @@ export default function HomePage() {
   const hasStarStudent = progress.some(
     p => p.skill_area === 'confidence_coach' && p.unlocks_earned.includes('Star Student')
   );
-  const isUltimateChampion = progress.length === 5 && progress.every(p => p.current_level >= 3);
+  const isUltimateChampion = progress.length >= 6 && progress.every(p => p.current_level >= 3);
 
   useEffect(() => {
     (async () => {
@@ -183,11 +184,17 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Parent dashboard link */}
-        <div className="text-center">
+        {/* Links */}
+        <div className="text-center space-y-2">
+          <button
+            onClick={() => router.push('/stories')}
+            className="text-sm text-gray-400 hover:text-coral font-bold block mx-auto"
+          >
+            My Stories 📚
+          </button>
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-sm text-gray-400 hover:text-navy font-bold"
+            className="text-sm text-gray-400 hover:text-navy font-bold block mx-auto"
           >
             Parent Dashboard →
           </button>

@@ -1,0 +1,17 @@
+{
+  "name": "Prep & Play with Wes",
+  "short_name": "Prep & Play",
+  "description": "Kindergarten skill-building app for Wes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1B2A4A",
+  "theme_color": "#1B2A4A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

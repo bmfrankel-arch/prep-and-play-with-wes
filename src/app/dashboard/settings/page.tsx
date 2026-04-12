@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getParentSettings, saveParentSettings } from '@/lib/db';
 import { ParentSettings } from '@/lib/types';
+import { preloadForOffline } from '@/lib/offlineCache';
 
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<ParentSettings | null>(null);
+  const [offlineStatus, setOfflineStatus] = useState('');
+  const [offlineLoading, setOfflineLoading] = useState(false);
 
   useEffect(() => {
     setSettings(getParentSettings());
@@ -86,6 +89,23 @@ export default function SettingsPage() {
             )}
           </div>
 
+          {/* Text-to-Speech */}
+          <div className="bg-gray-50 rounded-2xl p-5">
+            <h3 className="font-bold text-navy text-lg mb-4">Text-to-Speech</h3>
+            <label className="flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-navy block">Auto-read questions</span>
+                <span className="text-xs text-gray-500">Reads each question aloud automatically</span>
+              </div>
+              <button
+                onClick={() => update({ auto_read_questions: !settings.auto_read_questions })}
+                className={`w-14 h-7 rounded-full transition-colors ${settings.auto_read_questions ? 'bg-grass' : 'bg-gray-300'}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow transition-transform ${settings.auto_read_questions ? 'translate-x-7' : 'translate-x-0.5'}`} />
+              </button>
+            </label>
+          </div>
+
           {/* Assessment */}
           <div className="bg-gray-50 rounded-2xl p-5">
             <h3 className="font-bold text-navy text-lg mb-4">Assessment Mode</h3>
@@ -140,6 +160,24 @@ export default function SettingsPage() {
                 <option value="saturday">Saturday</option>
               </select>
             </div>
+          </div>
+
+          {/* Offline Mode */}
+          <div className="bg-gray-50 rounded-2xl p-5">
+            <h3 className="font-bold text-navy text-lg mb-4">Offline Mode ✈️</h3>
+            <p className="text-sm text-gray-600 mb-4">Pre-load questions so the app works without internet — great for airplane travel.</p>
+            <button
+              onClick={async () => {
+                setOfflineLoading(true);
+                await preloadForOffline(msg => setOfflineStatus(msg));
+                setOfflineLoading(false);
+              }}
+              disabled={offlineLoading}
+              className="bg-navy text-white font-bold px-6 py-3 rounded-xl disabled:opacity-50"
+            >
+              {offlineLoading ? 'Downloading...' : 'Pre-load for Offline'}
+            </button>
+            {offlineStatus && <p className="text-sm text-gray-500 mt-2">{offlineStatus}</p>}
           </div>
         </div>
       </div>

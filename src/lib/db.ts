@@ -9,6 +9,8 @@ import {
   LessonPlan,
   ParentSettings,
   DEFAULT_SETTINGS,
+  Story,
+  WeeklyReport,
 } from './types';
 
 // ── Local fallback storage for when Supabase is not configured ──
@@ -56,8 +58,10 @@ export async function getSkillProgress(skillArea: SkillArea): Promise<SkillProgr
   return data as SkillProgress;
 }
 
+export const ALL_SKILLS: SkillArea[] = ['word_wizard', 'pattern_detective', 'memory_master', 'math_explorer', 'confidence_coach', 'story_builder'];
+
 export async function getAllSkillProgress(): Promise<SkillProgress[]> {
-  const skills: SkillArea[] = ['word_wizard', 'pattern_detective', 'memory_master', 'math_explorer', 'confidence_coach'];
+  const skills = ALL_SKILLS;
 
   if (!isSupabaseConfigured()) {
     const all = getLocal<Record<string, SkillProgress>>('skill_progress', {});
@@ -254,4 +258,76 @@ export function getParentSettings(): ParentSettings {
 
 export function saveParentSettings(settings: ParentSettings): void {
   setLocal('parent_settings', settings);
+}
+
+// ── Dashboard PIN Session ──
+
+export function isDashboardUnlocked(): boolean {
+  if (typeof window === 'undefined') return false;
+  const exp = localStorage.getItem('ppw_dashboard_session');
+  if (!exp) return false;
+  return Date.now() < parseInt(exp);
+}
+
+export function unlockDashboard(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('ppw_dashboard_session', String(Date.now() + 24 * 60 * 60 * 1000));
+}
+
+export function lockDashboard(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('ppw_dashboard_session');
+}
+
+// ── Stories ──
+
+export async function saveStory(story: Story): Promise<void> {
+  const record = { ...story, completed_at: new Date().toISOString() };
+  if (!isSupabaseConfigured()) {
+    const stories = getLocal<Story[]>('stories', []);
+    stories.push({ ...record, id: crypto.randomUUID() });
+    setLocal('stories', stories);
+    return;
+  }
+  await supabase.from('stories').insert(record);
+}
+
+export async function getStories(): Promise<Story[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<Story[]>('stories', []);
+  }
+  const { data } = await supabase.from('stories').select('*').order('completed_at', { ascending: false });
+  return (data || []) as Story[];
+}
+
+export async function rateStory(id: string, rating: boolean): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    const stories = getLocal<Story[]>('stories', []);
+    const s = stories.find(s => s.id === id);
+    if (s) s.parent_rating = rating;
+    setLocal('stories', stories);
+    return;
+  }
+  await supabase.from('stories').update({ parent_rating: rating }).eq('id', id);
+}
+
+// ── Weekly Reports ──
+
+export async function saveWeeklyReport(report: WeeklyReport): Promise<void> {
+  const record = { ...report, generated_at: new Date().toISOString() };
+  if (!isSupabaseConfigured()) {
+    const reports = getLocal<WeeklyReport[]>('weekly_reports', []);
+    reports.push({ ...record, id: crypto.randomUUID() });
+    setLocal('weekly_reports', reports);
+    return;
+  }
+  await supabase.from('weekly_reports').insert(record);
+}
+
+export async function getWeeklyReports(): Promise<WeeklyReport[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<WeeklyReport[]>('weekly_reports', []);
+  }
+  const { data } = await supabase.from('weekly_reports').select('*').order('generated_at', { ascending: false });
+  return (data || []) as WeeklyReport[];
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SkillArea, SubGame, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES, GameQuestion } from '@/lib/types';
 import { getSkillProgress, updateSkillProgress, saveGameSession, saveWord, getParentSettings } from '@/lib/db';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
+import { speak, stopSpeaking } from '@/lib/speech';
 import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
 import PronunciationChallenge from './PronunciationChallenge';
@@ -86,6 +87,16 @@ export default function GameShell({
       await fetchQuestions(lvl);
     })();
   }, [skillArea, fetchQuestions]);
+
+  // Auto-read question aloud
+  useEffect(() => {
+    if (!loading && questions[currentIndex] && settings.auto_read_questions) {
+      const q = questions[currentIndex];
+      const text = q.clues ? q.clues.join('. ') : q.story || q.scenario || q.emoji_pattern || q.question;
+      const timer = setTimeout(() => speak(text), 500);
+      return () => { clearTimeout(timer); stopSpeaking(); };
+    }
+  }, [currentIndex, loading, questions, settings.auto_read_questions]);
 
   const handleAnswer = async (answer: string) => {
     const question = questions[currentIndex];
@@ -396,6 +407,21 @@ export default function GameShell({
             {i < currentIndex ? (i < score ? '★' : '☆') : '☆'}
           </span>
         ))}
+      </div>
+
+      {/* Speaker button */}
+      <div className="flex justify-center mb-3">
+        <button
+          onClick={() => {
+            const q = questions[currentIndex];
+            const text = q?.clues ? q.clues.join('. ') : q?.story || q?.scenario || q?.question || '';
+            speak(text);
+          }}
+          className="text-4xl active:scale-90 transition-transform"
+          aria-label="Read aloud"
+        >
+          🔊
+        </button>
       </div>
 
       {/* Question */}

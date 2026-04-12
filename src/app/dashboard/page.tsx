@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkillArea, SkillProgress, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getAllSkillProgress, getGameSessions, getStreak, updateSkillProgress, getSkillProgress } from '@/lib/db';
+import { getAllSkillProgress, getGameSessions, getStreak, updateSkillProgress, getSkillProgress, lockDashboard } from '@/lib/db';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 type Tab = 'progress' | 'assessments' | 'lessons' | 'settings';
@@ -71,7 +71,7 @@ export default function DashboardPage() {
     p.unlocks_earned.map(u => ({ skill: p.skill_area, unlock: u }))
   );
 
-  const needsPractice = (['word_wizard', 'pattern_detective', 'memory_master', 'math_explorer', 'confidence_coach'] as SkillArea[])
+  const needsPractice = (['word_wizard', 'pattern_detective', 'memory_master', 'math_explorer', 'confidence_coach', 'story_builder'] as SkillArea[])
     .filter(s => (skillCounts[s] || 0) < 3);
 
   if (loading) {
@@ -85,7 +85,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => router.push('/')} className="text-navy font-bold">← Home</button>
           <h1 className="text-2xl font-extrabold text-navy">Parent Dashboard</h1>
-          <div />
+          <button onClick={() => { lockDashboard(); router.push('/'); }} className="text-sm text-gray-400 hover:text-coral font-bold">🔒 Lock</button>
         </div>
 
         {/* Wes header */}
@@ -115,18 +115,18 @@ export default function DashboardPage() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto">
           {[
-            { id: 'progress' as Tab, label: 'Progress' },
-            { id: 'assessments' as Tab, label: 'Assessments' },
-            { id: 'lessons' as Tab, label: 'Lesson Plans' },
-            { id: 'settings' as Tab, label: 'Settings' },
+            { id: 'progress' as const, label: 'Progress', route: '' },
+            { id: 'assessments' as const, label: 'Assessments', route: '/dashboard/assessments' },
+            { id: 'lessons' as const, label: 'Lesson Plans', route: '/dashboard/lesson-plans' },
+            { id: 'weekly-report' as const, label: 'Weekly Report', route: '/dashboard/weekly-report' },
+            { id: 'word-bank' as const, label: 'Word Bank', route: '/dashboard/word-bank' },
+            { id: 'settings' as const, label: 'Settings', route: '/dashboard/settings' },
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => {
-                if (tab.id === 'assessments') router.push('/dashboard/assessments');
-                else if (tab.id === 'lessons') router.push('/dashboard/lesson-plans');
-                else if (tab.id === 'settings') router.push('/dashboard/settings');
-                else setActiveTab(tab.id);
+                if (tab.route) router.push(tab.route);
+                else setActiveTab('progress');
               }}
               className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap ${
                 activeTab === tab.id ? 'bg-navy text-white' : 'bg-gray-100 text-navy'
