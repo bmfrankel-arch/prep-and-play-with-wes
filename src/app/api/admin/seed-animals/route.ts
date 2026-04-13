@@ -20,6 +20,12 @@ const SEED_ANIMALS = [
     quiz_score_when_unlocked: 10,
     quiz_type_when_unlocked: 'manual_credit',
   },
+  {
+    animal_id: 'giant_panda',
+    rarity: 'common',
+    quiz_score_when_unlocked: 5,
+    quiz_type_when_unlocked: 'manual_credit',
+  },
 ];
 
 export async function POST() {

@@ -685,6 +685,19 @@ export const ANIMALS: Animal[] = [
     funFact: 'Eyes move independently — can look in two directions at once!',
     ttsText: 'Chameleon! Changes color to communicate emotions!',
   },
+  {
+    id: 'giant_panda',
+    name: 'Giant Panda',
+    emoji: '🐼',
+    rarity: 'common',
+    strength: 2,
+    speed: 2,
+    defense: 3,
+    powerLevel: 47,
+    superpower: 'Has a special extra thumb — actually an enlarged wrist bone — perfectly designed for gripping bamboo!',
+    funFact: 'Must eat for up to 16 hours a day and consumes up to 80 pounds of bamboo just to survive!',
+    ttsText: 'Giant Panda! Has a special extra thumb perfectly designed for gripping bamboo!',
+  },
 ];
 
 export const RARITY_ORDER: AnimalRarity[] = ['legendary', 'epic', 'rare', 'common'];
