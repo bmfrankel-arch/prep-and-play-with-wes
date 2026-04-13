@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getSkillProgress } from '@/lib/db';
 import { LEVEL_NAMES, DifficultyLevel } from '@/lib/types';
+import { prefetchQuestions } from '@/lib/prefetch';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 const subGames = [
@@ -17,7 +18,13 @@ export default function MemoryMasterPage() {
   const [level, setLevel] = useState<DifficultyLevel>(1);
 
   useEffect(() => {
-    getSkillProgress('memory_master').then(p => setLevel(p.current_level as DifficultyLevel));
+    getSkillProgress('memory_master').then(p => {
+      const lvl = p.current_level as DifficultyLevel;
+      setLevel(lvl);
+      prefetchQuestions('memory_master', 'remember_list', lvl);
+      prefetchQuestions('memory_master', 'order_recall', lvl);
+      prefetchQuestions('memory_master', 'story_details', lvl);
+    });
   }, []);
 
   return (

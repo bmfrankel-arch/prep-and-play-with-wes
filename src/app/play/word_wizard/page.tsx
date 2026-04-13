@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getSkillProgress } from '@/lib/db';
 import { LEVEL_NAMES, DifficultyLevel } from '@/lib/types';
+import { prefetchQuestions } from '@/lib/prefetch';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 const subGames = [
@@ -17,7 +18,14 @@ export default function WordWizardPage() {
   const [level, setLevel] = useState<DifficultyLevel>(1);
 
   useEffect(() => {
-    getSkillProgress('word_wizard').then(p => setLevel(p.current_level as DifficultyLevel));
+    getSkillProgress('word_wizard').then(p => {
+      const lvl = p.current_level as DifficultyLevel;
+      setLevel(lvl);
+      // Prefetch all sub-games in background
+      prefetchQuestions('word_wizard', 'riddles', lvl);
+      prefetchQuestions('word_wizard', 'story_finish', lvl);
+      prefetchQuestions('word_wizard', 'word_categories', lvl);
+    });
   }, []);
 
   return (

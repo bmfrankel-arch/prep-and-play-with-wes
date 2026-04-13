@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getAllSkillProgress, saveLessonPlan } from '@/lib/db';
 import { SkillArea, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES, DayPlan, SkillProgress } from '@/lib/types';
 
-const ALL_SKILLS: SkillArea[] = ['word_wizard', 'pattern_detective', 'memory_master', 'math_explorer', 'confidence_coach'];
+const ALL_SKILLS: SkillArea[] = ['word_wizard', 'pattern_detective', 'memory_master', 'math_explorer', 'confidence_coach', 'story_builder'];
 
 export default function LessonPlansPage() {
   const router = useRouter();

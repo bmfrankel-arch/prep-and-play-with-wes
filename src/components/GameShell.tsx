@@ -10,6 +10,21 @@ import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
 import PronunciationChallenge from './PronunciationChallenge';
 
+// Check prefetch cache (window-level shared with prefetch.ts)
+function getPrefetchedQuestions(skill: string, sub: string, lvl: number): GameQuestion[] | null {
+  if (typeof window === 'undefined') return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cache = (window as any).__ppw_cache;
+  if (!cache) return null;
+  const key = `${skill}_${sub}_${lvl}`;
+  const cached = cache[key];
+  if (cached?.length) {
+    delete cache[key]; // consume once
+    return cached;
+  }
+  return null;
+}
+
 interface GameShellProps {
   skillArea: SkillArea;
   subGame: SubGame;
@@ -55,6 +70,15 @@ export default function GameShell({
   const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
     setError(null);
+
+    // Check prefetch cache first
+    const cached = getPrefetchedQuestions(skillArea, subGame, lvl);
+    if (cached) {
+      setQuestions(cached);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -381,12 +405,13 @@ export default function GameShell({
   }
 
   if (loading) {
+    const loadingPhrases = ['Getting your question ready...', 'Almost there, Wes...', 'One moment...'];
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl animate-bounce-slow mb-4">{config.badges[level]}</div>
-          <p className="text-2xl font-bold text-navy">Loading questions...</p>
-          <p className="text-gray-500 mt-2">{config.label}</p>
+          <div className="text-7xl mb-4" style={{ animation: 'bounce 1.5s ease-in-out infinite' }}>{config.badges[level]}</div>
+          <p className="text-2xl font-bold text-navy mb-1">{config.label}</p>
+          <p className="text-gray-400 text-sm animate-pulse">{loadingPhrases[Math.floor(Date.now() / 2000) % loadingPhrases.length]}</p>
         </div>
       </div>
     );

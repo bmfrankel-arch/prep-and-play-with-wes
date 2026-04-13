@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getSkillProgress } from '@/lib/db';
 import { LEVEL_NAMES, DifficultyLevel } from '@/lib/types';
+import { prefetchQuestions } from '@/lib/prefetch';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 const subGames = [
@@ -17,7 +18,13 @@ export default function PatternDetectivePage() {
   const [level, setLevel] = useState<DifficultyLevel>(1);
 
   useEffect(() => {
-    getSkillProgress('pattern_detective').then(p => setLevel(p.current_level as DifficultyLevel));
+    getSkillProgress('pattern_detective').then(p => {
+      const lvl = p.current_level as DifficultyLevel;
+      setLevel(lvl);
+      prefetchQuestions('pattern_detective', 'shape_sequences', lvl);
+      prefetchQuestions('pattern_detective', 'size_color_sorting', lvl);
+      prefetchQuestions('pattern_detective', 'odd_one_out', lvl);
+    });
   }, []);
 
   return (

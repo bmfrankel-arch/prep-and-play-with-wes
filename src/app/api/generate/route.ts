@@ -22,7 +22,7 @@ For each riddle, return JSON array with objects containing:
 - "clues": array of clue strings
 - "choices": array of answer strings (one correct)
 - "correct_answer": the correct answer string
-- "syllable_breakdown": the answer broken into syllables with dots (e.g. "CAT • er • pil • lar")
+- "syllable_breakdown": syllables separated by " • " with the stressed syllable in ALL CAPS (e.g. "ca • TER • pil • lar", "EL • e • phant", "hi • ber • NATE")
 - "definition": a simple one-sentence child-friendly definition
 - "example_sentence": a simple sentence using the word
 
@@ -90,12 +90,15 @@ Return ONLY valid JSON array, no markdown.`,
 
 For each, return JSON array with objects containing:
 - "question": "Which one is different?"
-- "objects": array of 4 object descriptions (3 share a property, 1 does not)
+- "objects": array of 4 simple object names (3 share a property, 1 does not)
 - "choices": the 4 object names as answer choices
 - "correct_answer": the odd one out
 - "explanation": why it's different
 
-Properties: color, size, category, function, number of legs, etc.
+IMPORTANT: Only use objects from this approved emoji list (one word each):
+apple, banana, orange, grape, strawberry, watermelon, lemon, peach, pear, cherry, carrot, broccoli, corn, tomato, potato, dog, cat, rabbit, bear, fox, tiger, lion, cow, pig, chicken, duck, frog, fish, butterfly, bee, car, bus, train, plane, boat, bicycle, house, tree, flower, sun, moon, star, cloud, rainbow, fire, snowflake, ball, balloon, book, pencil, scissors, hat, shoe, crown, cake, candy, cookie, pizza, bread, elephant, horse, monkey, bird, turtle, whale, dolphin, octopus, mushroom, rose, key
+
+Do NOT use multi-word object names like "red cherry" — use single words only: "cherry", "apple", etc.
 Return ONLY valid JSON array, no markdown.`,
       },
 

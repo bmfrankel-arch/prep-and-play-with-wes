@@ -11,7 +11,7 @@ Return a JSON object with:
 - "word": the word
 - "definition": a simple, child-friendly one-sentence definition
 - "example_sentence": a fun example sentence using the word
-- "syllable_breakdown": the word broken into syllables with dots (e.g. "EL • e • phant")
+- "syllable_breakdown": syllables separated by " • " with the stressed syllable in ALL CAPS (e.g. "EL • e • phant", "hi • ber • NATE", "gi • GAN • tic")
 - "fun_fact": a fun one-sentence fact related to the word
 
 Pick from categories: nature, animals, science, feelings, actions, describing words.

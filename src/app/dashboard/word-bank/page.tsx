@@ -5,18 +5,26 @@ import { useRouter } from 'next/navigation';
 import { VOCABULARY_BANK, VocabWord } from '@/data/vocabulary';
 import { getWordCollection } from '@/lib/db';
 
+const CATS_EXPLANATION = `The CATS assessment is a one-on-one cognitive ability test administered by a licensed psychologist. It is required for admission to many top Dallas private schools including St. Mark's and Greenhill. It measures verbal reasoning, visual-spatial skills, working memory, and processing speed — not academic knowledge. The words in this bank are tuned to the vocabulary level tested in the CATS verbal subtests.`;
+
 const CATEGORIES = Array.from(new Set(VOCABULARY_BANK.map(w => w.category)));
 
 export default function WordBankPage() {
   const router = useRouter();
   const [category, setCategory] = useState('All');
-  const [diffLevel, setDiffLevel] = useState(0); // 0 = all
+  const [diffLevel, setDiffLevel] = useState(0);
   const [mastered, setMastered] = useState<Set<string>>(new Set());
+  const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
     getWordCollection().then(words => {
       setMastered(new Set(words.map(w => w.word.toLowerCase())));
     });
+    // Show CATS tooltip on first visit
+    if (!localStorage.getItem('ppw_cats_tooltip_seen')) {
+      setShowTooltip(true);
+      localStorage.setItem('ppw_cats_tooltip_seen', '1');
+    }
   }, []);
 
   let filtered: VocabWord[] = VOCABULARY_BANK;
@@ -30,7 +38,13 @@ export default function WordBankPage() {
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => router.push('/dashboard')} className="text-navy font-bold">← Dashboard</button>
-          <h1 className="text-2xl font-extrabold text-navy">CATS Word Bank</h1>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1">
+              <h1 className="text-2xl font-extrabold text-navy">CATS Word Bank</h1>
+              <button onClick={() => setShowTooltip(true)} className="text-lg text-gray-400 hover:text-navy">ℹ️</button>
+            </div>
+            <p className="text-[10px] text-gray-400 max-w-xs mx-auto">CATS = Collaborative Academic Testing Service — the cognitive ability assessment required by Dallas private schools.</p>
+          </div>
           <div />
         </div>
 
@@ -85,6 +99,17 @@ export default function WordBankPage() {
           })}
         </div>
       </div>
+
+      {/* CATS Tooltip Modal */}
+      {showTooltip && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6" onClick={() => setShowTooltip(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-navy text-lg mb-3">What is the CATS Test?</h3>
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">{CATS_EXPLANATION}</p>
+            <button onClick={() => setShowTooltip(false)} className="bg-navy text-white font-bold px-6 py-2 rounded-xl w-full">Got it ✓</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

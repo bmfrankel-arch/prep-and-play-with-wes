@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getSkillProgress } from '@/lib/db';
 import { LEVEL_NAMES, DifficultyLevel } from '@/lib/types';
+import { prefetchQuestions } from '@/lib/prefetch';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 const subGames = [
@@ -17,7 +18,13 @@ export default function ConfidenceCoachPage() {
   const [level, setLevel] = useState<DifficultyLevel>(1);
 
   useEffect(() => {
-    getSkillProgress('confidence_coach').then(p => setLevel(p.current_level as DifficultyLevel));
+    getSkillProgress('confidence_coach').then(p => {
+      const lvl = p.current_level as DifficultyLevel;
+      setLevel(lvl);
+      prefetchQuestions('confidence_coach', 'meet_greet', lvl);
+      prefetchQuestions('confidence_coach', 'what_would_you_do', lvl);
+      prefetchQuestions('confidence_coach', 'i_dont_know', lvl);
+    });
   }, []);
 
   return (

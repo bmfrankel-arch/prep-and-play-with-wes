@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
         memory_master: 'Memory Master (Working Memory)',
         math_explorer: 'Math Explorer (Number Sense & Arithmetic)',
         confidence_coach: 'Confidence Coach (Social & Emotional Readiness)',
+        story_builder: 'Story Builder (Sentence Construction & Narrative)',
       };
       return `${names[area] || area} - Current Level: ${levels?.[area] || 1}`;
     }).join('\n');
@@ -35,6 +36,8 @@ Return a JSON array of 5 objects (one per day), each with:
 - "instructions": detailed parent instructions (2-3 paragraphs)
 - "quick_tips": 2-3 practical tips as a single string with bullet points
 - "materials": what household items are needed
+
+Story Builder activities include: building sentences from word cards, arranging words in different orders, completing sentence starters, identifying subjects and actions, creating 3-sentence stories about their day. Use paper, crayons, and conversation only.
 
 Make activities engaging, playful, and educational. Reference kitchen items, toys, books, outdoor spaces, etc.
 Return ONLY valid JSON array, no markdown.`;

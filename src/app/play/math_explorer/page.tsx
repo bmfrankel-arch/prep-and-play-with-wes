@@ -4,12 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getSkillProgress } from '@/lib/db';
 import { LEVEL_NAMES, DifficultyLevel } from '@/lib/types';
+import { prefetchQuestions } from '@/lib/prefetch';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 const subGames = [
-  { id: 'counting_adventures', name: 'Counting Adventures', emoji: '🧮', desc: 'Fun word problems!' },
-  { id: 'more_or_less', name: 'More or Less', emoji: '⚖️', desc: 'Compare numbers!' },
-  { id: 'algebra_puzzles', name: 'Algebra Puzzles', emoji: '🔤', desc: 'Find x, y, and n!' },
+  { id: 'counting_adventures', name: 'Counting Adventures', icon: '🧮', desc: 'Fun word problems!' },
+  { id: 'more_or_less', name: 'More or Less', icon: '⚖️', desc: 'Compare numbers!' },
+  { id: 'algebra_puzzles', name: 'Algebra Puzzles', icon: 'x=?', desc: 'Find x, y, and n!' },
 ];
 
 export default function MathExplorerPage() {
@@ -17,7 +18,13 @@ export default function MathExplorerPage() {
   const [level, setLevel] = useState<DifficultyLevel>(1);
 
   useEffect(() => {
-    getSkillProgress('math_explorer').then(p => setLevel(p.current_level as DifficultyLevel));
+    getSkillProgress('math_explorer').then(p => {
+      const lvl = p.current_level as DifficultyLevel;
+      setLevel(lvl);
+      prefetchQuestions('math_explorer', 'counting_adventures', lvl);
+      prefetchQuestions('math_explorer', 'more_or_less', lvl);
+      prefetchQuestions('math_explorer', 'algebra_puzzles', lvl);
+    });
   }, []);
 
   return (
@@ -35,7 +42,7 @@ export default function MathExplorerPage() {
             onClick={() => router.push(`/play/math_explorer/${sg.id}`)}
             className="w-full bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all active:scale-98 flex items-center gap-4 text-left"
           >
-            <span className="text-4xl">{sg.emoji}</span>
+            <span className={`${sg.icon.length <= 2 ? 'text-4xl' : 'text-2xl font-extrabold text-navy bg-sunshine/30 px-3 py-1 rounded-xl'}`}>{sg.icon}</span>
             <div>
               <h3 className="text-xl font-bold text-navy">{sg.name}</h3>
               <p className="text-gray-500">{sg.desc}</p>
