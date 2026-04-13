@@ -160,20 +160,26 @@ Return ONLY valid JSON array, no markdown.`,
       },
 
       math_explorer: {
-        counting_adventures: `Generate ${count} math word problem(s) for a 5-year-old at ${level === 1 ? 'Level 1 (Explorer): Numbers up to 100, addition and subtraction, simple grouping/multiplication concepts. Include emoji visuals. 4 answer choices.' : level === 2 ? 'Level 2 (Adventurer): Multi-step word problems within 100, introduces simple multiplication and division through equal groups. 4 answer choices.' : 'Level 3 (Champion): Two-step word problems, numbers up to 100, all four operations, word problems only (no emoji visuals). 4 answer choices.'}.
+        counting_adventures: `Generate ${count} math word problem(s) for a 5-year-old at ${level === 1 ? 'Level 1: Addition ONLY, numbers 1-20. Include emoji visuals. 4 answer choices.' : level === 2 ? 'Level 2: Addition and subtraction ONLY, numbers 1-50. Emoji visuals optional. 4 answer choices.' : 'Level 3: Addition and subtraction ONLY, numbers 1-100. May include two-step problems and "how many more/fewer" comparisons. 4 answer choices.'}.
+
+CRITICAL RULES:
+- NEVER use multiplication (no "times", "groups of", "rows of", "each has", "per", or repeated addition concepts)
+- NEVER use division
+- Level 1: addition only, numbers 1-20
+- Level 2: addition and subtraction, numbers 1-50
+- Level 3: addition and subtraction, numbers 1-100
+- Frame as real-world stories: animals, food, toys, friends, nature
 
 For each, return JSON array with objects containing:
-- "question": a fun story-based word problem
+- "question": a fun story-based word problem using ONLY addition and/or subtraction
 - "choices": array of 4 number answers (as strings)
 - "correct_answer": the correct number (as string)
 - "explanation": step-by-step solution in child-friendly language
 ${level <= 2 ? '- "emoji_visual": emoji representation of the problem (e.g. "🍎🍎🍎 + 🍎🍎 = ?")' : ''}
 
-Frame as fun scenarios: birthday parties, pets, playground, snacks, toy collection.
-IMPORTANT: For counting questions, always display the objects as emoji directly in the "emoji_visual" field (e.g. "🍎🍎🍎 + 🍎🍎 = ?"). NEVER reference a picture, image, or diagram that is not rendered as text or emoji.
 Return ONLY valid JSON array, no markdown.`,
 
-        more_or_less: `Generate ${count} comparison exercise(s) for a 5-year-old at ${level === 1 ? 'Level 1: Compare two numbers up to 100, ask which is more/less, how many more/fewer. Also include ordering 3 numbers least to greatest.' : level === 2 ? 'Level 2: Compare and order numbers up to 100, introduce "how many times more" comparisons.' : 'Level 3: Place value comparisons (tens and ones), rounding to nearest 10, ordering 4-5 numbers.'}.
+        more_or_less: `Generate ${count} comparison exercise(s) for a 5-year-old at ${level === 1 ? 'Level 1: Compare two numbers up to 100, ask which is more/less, how many more/fewer. Also include ordering 3 numbers least to greatest.' : level === 2 ? 'Level 2: Compare and order numbers up to 100. Use "how many more" and "how many fewer" (subtraction-based comparisons only — NEVER use "how many times more").' : 'Level 3: Place value comparisons (tens and ones), rounding to nearest 10, ordering 4-5 numbers. Use "how many more/fewer" only — never multiplication-based comparisons.'}.
 
 For each, return JSON array with objects containing:
 - "question": the comparison question
@@ -183,7 +189,7 @@ For each, return JSON array with objects containing:
 
 Return ONLY valid JSON array, no markdown.`,
 
-        algebra_puzzles: `Generate ${count} missing number puzzle(s) for a 5-year-old at ${level === 1 ? 'Level 1: Missing number in addition and subtraction equations up to 20. Use the variable letter "x" for the unknown (e.g. "4 + x = 11"). 4 answer choices.' : level === 2 ? 'Level 2: Missing number in all four operations up to 50. Use "x" for the unknown (e.g. "x × 3 = 12" or "20 ÷ x = 4"). Use × for multiplication, ÷ for division. 4 answer choices.' : 'Level 3: Two-variable problems using "x" and "y" (e.g. "x + y = 10, if x = 3, what is y?"), missing numbers in sequences using "n", all operations up to 100. 4 answer choices.'}.
+        algebra_puzzles: `Generate ${count} missing number puzzle(s) for a 5-year-old at ${level === 1 ? 'Level 1: Missing number in addition and subtraction equations ONLY, up to 20. Use "x" for the unknown (e.g. "4 + x = 11" or "x - 3 = 5"). No multiplication or division. 4 answer choices.' : level === 2 ? 'Level 2: Missing number in addition and subtraction equations ONLY, up to 50. Use "x" (e.g. "x + 15 = 28" or "42 - x = 19"). No multiplication or division. 4 answer choices.' : 'Level 3: Two-variable addition/subtraction problems (e.g. "x + y = 10, if x = 3, what is y?"), missing numbers in sequences using "n", and simple multiplication (2x = 8, 3x = 9) but NEVER division. 4 answer choices.'}.
 
 IMPORTANT RULES FOR VARIABLE LETTERS:
 - Use lowercase "x" as the primary unknown variable
