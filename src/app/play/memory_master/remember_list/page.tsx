@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
-import { speakSequence, speak } from '@/lib/speech';
+import { speakSequence, speak, speakQuestion } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 
@@ -110,7 +110,10 @@ export default function RememberListPage() {
     // Transition to recall
     const timer = setTimeout(() => {
       setFading(true);
-      setTimeout(() => setPhase('recall'), 500);
+      setTimeout(() => {
+        setPhase('recall');
+        speakQuestion("Which words were on the list? Tap all the ones you remember!");
+      }, 500);
     }, totalSec * 1000);
 
     return () => { clearTimeout(timer); clearInterval(interval); };
@@ -272,12 +275,12 @@ export default function RememberListPage() {
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
-              {q.all_choices.map(word => (
+              {(q.all_choices || []).filter(w => w).map(word => (
                 <button key={word} onClick={() => handleSelect(word)}
                   onTouchEnd={e => e.currentTarget.blur()}
                   disabled={selected.includes(word)}
-                  className={`game-btn border-2 px-4 py-4 focus:outline-none ${
-                    selected.includes(word) ? 'bg-grass/20 border-grass text-grass' : 'bg-purple-50 border-purple-200 hover:bg-purple-500 hover:text-white text-navy'
+                  className={`game-btn border-2 px-4 py-4 focus:outline-none min-h-[72px] text-xl font-bold ${
+                    selected.includes(word) ? 'bg-grass/20 border-grass text-grass' : 'bg-purple-50 border-purple-200 text-navy'
                   }`}>{word}</button>
               ))}
             </div>

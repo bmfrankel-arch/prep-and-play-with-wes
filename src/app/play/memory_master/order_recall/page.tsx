@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
-import { speakSequence, speak } from '@/lib/speech';
+import { speakSequence, speak, speakQuestion } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 
@@ -28,6 +28,7 @@ export default function OrderRecallPage() {
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newLevel, setNewLevel] = useState<DifficultyLevel>(2);
   const [feedbackOk, setFeedbackOk] = useState(false);
+  const [shuffledItems, setShuffledItems] = useState<string[]>([]);
 
   const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
     setPhase('loading');
@@ -74,7 +75,13 @@ export default function OrderRecallPage() {
 
     // Warning at 3 seconds
     const warningTimer = setTimeout(() => speak("Get ready...", { rate: 0.85, pitch: 1.0 }), (totalSec - 3) * 1000);
-    const timer = setTimeout(() => setPhase('recall'), totalSec * 1000);
+    const timer = setTimeout(() => {
+      // Shuffle items ONCE and store in state before transitioning
+      const shuffled = [...q.sequence].sort(() => Math.random() - 0.5);
+      setShuffledItems(shuffled);
+      setPhase('recall');
+      setTimeout(() => speakQuestion("Tap the items in the right order!"), 300);
+    }, totalSec * 1000);
     return () => { clearTimeout(timer); clearTimeout(warningTimer); };
   }, [phase, currentIndex, questions, level]);
 
@@ -130,6 +137,7 @@ export default function OrderRecallPage() {
 
   const advance = () => {
     setTapped([]);
+    setShuffledItems([]);
     if (currentIndex + 1 >= questions.length) finishGame();
     else { setCurrentIndex(i => i + 1); setPhase('show'); }
   };
@@ -203,15 +211,15 @@ export default function OrderRecallPage() {
               </div>
             )}
             <div className="grid grid-cols-2 gap-3 mt-4">
-              {[...q.sequence].sort(() => Math.random() - 0.5).map(item => (
+              {(shuffledItems.length > 0 ? shuffledItems : q.sequence).map(item => (
                 <button
                   key={item}
                   onClick={() => handleTap(item)}
                   onTouchEnd={(e) => e.currentTarget.blur()}
                   disabled={tapped.includes(item)}
-                  className={`game-btn border-2 px-4 py-4 focus:outline-none ${tapped.includes(item) ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-purple-50 border-purple-200 hover:bg-purple-500 hover:text-white text-navy'}`}
+                  className={`game-btn border-2 px-4 py-4 focus:outline-none min-h-[72px] text-xl font-bold ${tapped.includes(item) ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-purple-50 border-purple-200 text-navy'}`}
                 >
-                  {item}
+                  {item || '—'}
                 </button>
               ))}
             </div>

@@ -80,11 +80,17 @@ function AssessmentContent() {
     }
   }, [phase, answers]);
 
-  // Auto-read assessment questions with British voice
+  // Auto-read assessment questions — skip choices for math_explorer questions
   useEffect(() => {
     if (phase === 'question' && questions[currentIndex] && shouldAutoRead()) {
       const qn = questions[currentIndex];
-      const timer = setTimeout(() => speakQuestion(qn.question, () => speakChoices(qn.choices)), 500);
+      const qSkill = (qn as unknown as { skill_area?: string }).skill_area;
+      const isMath = qSkill === 'math_explorer';
+      const timer = setTimeout(() => {
+        speakQuestion(qn.question, () => {
+          if (!isMath) speakChoices(qn.choices);
+        });
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [currentIndex, phase, questions]);
