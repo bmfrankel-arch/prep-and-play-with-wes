@@ -115,6 +115,11 @@ export interface GameQuestion {
   display_time?: number;
   require_order?: boolean;
   tts_reading?: string;
+  work_shown?: {
+    steps: string[];
+    tts: string;
+    equation_display?: string;
+  };
 }
 
 export interface Story {
@@ -206,6 +211,7 @@ export interface ParentSettings {
   tts_speed: 'slow' | 'normal' | 'fast';
   tts_read_choices: boolean;
   tts_greeting: boolean;
+  show_math_work: boolean;
 }
 
 export const DEFAULT_SETTINGS: ParentSettings = {
@@ -221,6 +227,7 @@ export const DEFAULT_SETTINGS: ParentSettings = {
   tts_speed: 'normal',
   tts_read_choices: true,
   tts_greeting: true,
+  show_math_work: true,
 };
 
 export const SKILL_CONFIG: Record<SkillArea, {

@@ -108,6 +108,18 @@ export default function SettingsPage() {
             </button>
           </div>
 
+          {/* Math Show Your Work */}
+          <div className="bg-gray-50 rounded-2xl p-5">
+            <h3 className="font-bold text-navy text-lg mb-4">Math Explorer</h3>
+            <label className="flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-navy block">Show math working after each answer</span>
+                <span className="text-xs text-gray-500">Step-by-step explanation of how to solve</span>
+              </div>
+              <Toggle on={settings.show_math_work !== false} onToggle={() => update({ show_math_work: !settings.show_math_work })} />
+            </label>
+          </div>
+
           {/* Pronunciation */}
           <div className="bg-gray-50 rounded-2xl p-5">
             <h3 className="font-bold text-navy text-lg mb-4">Pronunciation Mode</h3>

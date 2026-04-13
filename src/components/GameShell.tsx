@@ -7,6 +7,7 @@ import { getSkillProgress, updateSkillProgress, saveGameSession, saveWord, getPa
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
 import { speakQuestion, speakChoices, speak, stopSpeaking, shouldAutoRead, shouldReadChoices } from '@/lib/speech';
 import { getFallbackQuestions } from '@/data/fallbacks';
+import { generateFallbackWorkShown, WorkShown } from '@/lib/mathExplainer';
 import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
 import PronunciationChallenge from './PronunciationChallenge';
@@ -69,6 +70,9 @@ export default function GameShell({
   const [locked, setLocked] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [showMathWork, setShowMathWork] = useState(false);
+  const [currentWorkShown, setCurrentWorkShown] = useState<WorkShown | null>(null);
+  const [workButtonReady, setWorkButtonReady] = useState(false);
 
   const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
@@ -289,11 +293,27 @@ export default function GameShell({
       }
     }
 
-    // Advance after feedback delay — 1.5s max
-    setTimeout(() => {
-      setFeedback(null);
-      advanceQuestion();
-    }, 1500);
+    // For Math Explorer in regular game mode: show work panel after feedback
+    const shouldShowWork = isMathExplorer && (settings.show_math_work !== false);
+    if (shouldShowWork) {
+      setTimeout(() => {
+        setFeedback(null);
+        const q = questions[currentIndex];
+        const work = q?.work_shown || generateFallbackWorkShown(q?.question || '', q?.correct_answer || '');
+        setCurrentWorkShown(work);
+        setShowMathWork(true);
+        setWorkButtonReady(false);
+        // Read explanation aloud
+        setTimeout(() => speak(work.tts, { rate: 0.80, pitch: 1.05, onEnd: () => setWorkButtonReady(true) }), 500);
+        // Failsafe: enable button after 10s
+        setTimeout(() => setWorkButtonReady(true), 10000);
+      }, 1500);
+    } else {
+      setTimeout(() => {
+        setFeedback(null);
+        advanceQuestion();
+      }, 1500);
+    }
   };
 
   const advanceQuestion = () => {
@@ -574,6 +594,52 @@ export default function GameShell({
                 </p>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Math "Show Your Work" panel */}
+      {showMathWork && currentWorkShown && (
+        <div className="fixed inset-x-0 bottom-0 z-40 animate-slide-up">
+          <div className="bg-[#FFF8E7] border-t-2 border-navy rounded-t-3xl p-6 shadow-2xl max-h-[60vh] overflow-y-auto">
+            <h3 className="text-lg font-extrabold text-navy mb-4 text-center">Here&apos;s how we work it out! 🧮</h3>
+
+            {/* Steps */}
+            <div className="space-y-3 mb-4">
+              {currentWorkShown.steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="w-8 h-8 rounded-full bg-navy text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {i + 1}
+                  </span>
+                  <p className="text-xl font-bold text-navy pt-0.5">{step}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Equation display */}
+            {currentWorkShown.equation_display && (
+              <div className="bg-white rounded-2xl p-4 text-center mb-4 border-2 border-navy/20">
+                <p className="text-3xl font-extrabold text-navy tracking-wide">
+                  {currentWorkShown.equation_display}
+                </p>
+              </div>
+            )}
+
+            {/* Speaker + Next button */}
+            <div className="flex gap-3">
+              <button onClick={() => speak(currentWorkShown.tts, { rate: 0.80, pitch: 1.05 })}
+                className="min-w-[52px] min-h-[52px] text-3xl active:scale-125 transition-transform focus:outline-none">
+                🔊
+              </button>
+              <button
+                onClick={() => { setShowMathWork(false); setCurrentWorkShown(null); advanceQuestion(); }}
+                disabled={!workButtonReady}
+                className={`flex-1 min-h-[72px] rounded-2xl font-bold text-xl transition-all focus:outline-none ${
+                  workButtonReady ? 'bg-grass text-white shadow-lg' : 'bg-gray-200 text-gray-400'
+                }`}>
+                Next Question →
+              </button>
+            </div>
           </div>
         </div>
       )}

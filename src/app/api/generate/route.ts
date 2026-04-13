@@ -176,6 +176,7 @@ For each, return JSON array with objects containing:
 - "correct_answer": the correct number (as string)
 - "explanation": step-by-step solution in child-friendly language
 ${level <= 2 ? '- "emoji_visual": emoji representation of the problem (e.g. "🍎🍎🍎 + 🍎🍎 = ?")' : ''}
+- "work_shown": object with "steps" (array of 2-3 simple step strings showing working), "tts" (natural spoken explanation for text-to-speech), and optional "equation_display" (the key equation like "6 + 3 = 9")
 
 Return ONLY valid JSON array, no markdown.`,
 
@@ -186,6 +187,7 @@ For each, return JSON array with objects containing:
 - "choices": array of 4 answer options (as strings)
 - "correct_answer": correct answer (as string)
 - "explanation": child-friendly explanation
+- "work_shown": object with "steps" (array of 2-3 step strings), "tts" (natural spoken explanation)
 
 Return ONLY valid JSON array, no markdown.`,
 
@@ -205,6 +207,7 @@ For each, return JSON array with objects containing:
 - "correct_answer": the correct number (as string)
 - "explanation": shows the solved equation with the answer filled in (e.g. "The answer is 7! So x = 7, because 4 + 7 = 11 ✓")
 - "tts_reading": a natural speech version of the question (e.g. "4 plus x equals 11. What is x?")
+- "work_shown": object with "steps" (array showing how to solve step by step), "tts" (spoken explanation), and "equation_display" (filled-in equation like "4 + 7 = 11 ✓")
 
 Return ONLY valid JSON array, no markdown.`,
       },
