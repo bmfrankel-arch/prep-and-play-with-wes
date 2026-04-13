@@ -89,6 +89,7 @@ Return ONLY valid JSON array, no markdown.`,
 
 For each, return JSON array with objects containing:
 - "emoji_pattern": the visible pattern string with ❓ at the end
+- "tts_reading": a spoken description of the pattern WITHOUT emoji (e.g. "Red circle, blue circle, red circle, blue circle. What comes next?")
 - "choices": array of 3-4 emoji options
 - "correct_answer": the correct emoji
 - "explanation": why this emoji completes the pattern

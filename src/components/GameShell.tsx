@@ -165,6 +165,9 @@ export default function GameShell({
   }, [feedback]);
 
   // Auto-read question aloud (British accent via centralized TTS)
+  // Math Explorer: read question only, never read answer choices (child should calculate independently)
+  const isMathExplorer = skillArea === 'math_explorer';
+
   useEffect(() => {
     if (!loading && questions[currentIndex] && shouldAutoRead()) {
       const q = questions[currentIndex];
@@ -172,8 +175,8 @@ export default function GameShell({
       if (text) {
         const timer = setTimeout(() => {
           speakQuestion(text, () => {
-            // After reading question, read choices if enabled
-            if (shouldReadChoices() && q.choices?.length) {
+            // Read choices for non-math modules only
+            if (!isMathExplorer && shouldReadChoices() && q.choices?.length) {
               speakChoices(q.choices);
             }
           });
@@ -181,7 +184,7 @@ export default function GameShell({
         return () => { clearTimeout(timer); stopSpeaking(); };
       }
     }
-  }, [currentIndex, loading, questions]);
+  }, [currentIndex, loading, questions, isMathExplorer]);
 
   const handleSelect = (answer: string) => {
     if (locked || feedback) return;
@@ -521,7 +524,8 @@ export default function GameShell({
             if (!q) return;
             const text = q.tts_reading || (q.clues ? q.clues.join('. ') : q.story || q.scenario || q.question || '');
             if (text) speakQuestion(text, () => {
-              if (q.choices?.length) speakChoices(q.choices);
+              // Skip choices for Math Explorer
+              if (!isMathExplorer && q.choices?.length) speakChoices(q.choices);
             });
           }}
           className="min-w-[52px] min-h-[52px] text-4xl active:scale-125 transition-transform focus:outline-none"

@@ -3,11 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
-import { getSkillProgress, updateSkillProgress, saveGameSession, saveStory } from '@/lib/db';
+import { getSkillProgress, updateSkillProgress, saveGameSession, saveStory, getAnimalCollection, saveAnimalUnlock } from '@/lib/db';
 import { playCorrectSound } from '@/lib/audio';
 import { speak, speakWord, speakStory, speakCelebration } from '@/lib/speech';
+import { selectAnimal } from '@/lib/animalSelection';
+import { Animal } from '@/data/animals';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
+import AnimalUnlockSequence from '@/components/AnimalUnlockSequence';
 import BadgeDisplay from '@/components/BadgeDisplay';
 
 interface WordTile {
@@ -66,6 +69,9 @@ export default function StoryBuilderPage() {
   const [feedback, setFeedback] = useState<{ valid: boolean; text: string } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [storyComplete, setStoryComplete] = useState(false);
+  const [showAnimalUnlock, setShowAnimalUnlock] = useState(false);
+  const [unlockedAnimal, setUnlockedAnimal] = useState<Animal | null>(null);
+  const [animalSaveStatus, setAnimalSaveStatus] = useState<'saved' | 'failed' | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newLevel, setNewLevel] = useState<DifficultyLevel>(2);
   const [consCorrect, setConsCorrect] = useState(0);
@@ -274,6 +280,24 @@ export default function StoryBuilderPage() {
     setTimeout(() => {
       speakStory(`Here is Wes's story. ${sentences.join('. ')}.`);
     }, 1000);
+
+    // Trigger animal unlock after story completion
+    try {
+      const collection = await getAnimalCollection();
+      // Rarity based on Story Builder level
+      const score = level === 3 ? 9 : level === 2 ? 7 : 4; // Maps to Epic/Rare or Common/Rare tiers
+      const animal = selectAnimal(score, 10, collection);
+      if (animal) {
+        setUnlockedAnimal(animal);
+        const { saved } = await saveAnimalUnlock({
+          animal_id: animal.id,
+          rarity: animal.rarity,
+          quiz_score_when_unlocked: level,
+          quiz_type_when_unlocked: 'story_builder',
+        });
+        setAnimalSaveStatus(saved ? 'saved' : 'failed');
+      }
+    } catch { /* continue */ }
   };
 
   if (showLevelUp) {
@@ -323,6 +347,17 @@ export default function StoryBuilderPage() {
     );
   }
 
+  // Animal unlock after story completion
+  if (showAnimalUnlock && unlockedAnimal) {
+    return (
+      <AnimalUnlockSequence
+        animal={unlockedAnimal}
+        onComplete={() => { setShowAnimalUnlock(false); }}
+        saveStatus={animalSaveStatus}
+      />
+    );
+  }
+
   if (storyComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -338,9 +373,14 @@ export default function StoryBuilderPage() {
             ))}
           </div>
           <div className="flex gap-3 justify-center flex-wrap">
+            {unlockedAnimal && !showAnimalUnlock && (
+              <button onClick={() => { speakCelebration("Brilliant story, Wes! You've earned a new animal!"); setTimeout(() => setShowAnimalUnlock(true), 2000); }} className="game-btn bg-gold text-navy px-6 animate-pulse">
+                See Your New Animal! 🦁
+              </button>
+            )}
             <button onClick={() => speakStory(completedSentences.join('. ') + '.')} className="game-btn bg-coral text-white px-6">🔊 Read Aloud</button>
             <button onClick={() => router.push('/stories')} className="game-btn bg-navy text-white px-6">My Stories</button>
-            <button onClick={() => { setSentenceIndex(0); setCompletedSentences([]); setStoryComplete(false); fetchSession(level); }} className="game-btn bg-grass text-white px-6">New Story!</button>
+            <button onClick={() => { setSentenceIndex(0); setCompletedSentences([]); setStoryComplete(false); setUnlockedAnimal(null); setAnimalSaveStatus(null); fetchSession(level); }} className="game-btn bg-grass text-white px-6">New Story!</button>
             <button onClick={() => router.push('/')} className="game-btn bg-gray-200 text-navy px-6">Home</button>
           </div>
         </div>

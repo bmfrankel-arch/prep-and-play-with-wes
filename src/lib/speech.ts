@@ -20,24 +20,19 @@ function getBritishVoice(): SpeechSynthesisVoice | null {
   if (!synth) return null;
   const voices = synth.getVoices();
   if (voices.length === 0) return null;
-
   const preferred = ['Daniel', 'Google UK English Female', 'Google UK English Male', 'Martha', 'Oliver'];
   for (const name of preferred) {
     const match = voices.find(v => v.name === name);
     if (match) return match;
   }
-  const gbVoice = voices.find(v => v.lang === 'en-GB');
-  if (gbVoice) return gbVoice;
-  return voices.find(v => v.lang.startsWith('en')) || null;
+  return voices.find(v => v.lang === 'en-GB') || voices.find(v => v.lang.startsWith('en')) || null;
 }
 
 function getAmericanVoice(): SpeechSynthesisVoice | null {
   const synth = getSynth();
   if (!synth) return null;
   const voices = synth.getVoices();
-  const usVoice = voices.find(v => v.lang === 'en-US');
-  if (usVoice) return usVoice;
-  return voices.find(v => v.lang.startsWith('en')) || null;
+  return voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en')) || null;
 }
 
 function getVoice(accent: VoiceAccent = 'british'): SpeechSynthesisVoice | null {
@@ -47,7 +42,6 @@ function getVoice(accent: VoiceAccent = 'british'): SpeechSynthesisVoice | null 
   return cachedVoice;
 }
 
-// Read TTS settings from localStorage (avoids circular import with db.ts)
 function getTTSSettings(): { accent: VoiceAccent; rate: number; autoRead: boolean; readChoices: boolean; greeting: boolean } {
   if (typeof window === 'undefined') return { accent: 'british', rate: 0.85, autoRead: true, readChoices: true, greeting: true };
   try {
@@ -65,6 +59,25 @@ function getTTSSettings(): { accent: VoiceAccent; rate: number; autoRead: boolea
   } catch { return { accent: 'british', rate: 0.85, autoRead: true, readChoices: true, greeting: true }; }
 }
 
+// ── Strip emoji from text before TTS ──
+
+function stripEmoji(text: string): string {
+  // Remove emoji using surrogate pair ranges (compatible with ES5 target)
+  return text
+    // Remove astral plane characters (emoji, symbols) via surrogate pairs
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+    // Remove misc symbols, dingbats, emoticons in BMP
+    .replace(/[\u2600-\u27BF]/g, '')
+    .replace(/[\u2300-\u23FF]/g, '')
+    .replace(/[\u2B00-\u2BFF]/g, '')
+    // Remove variation selectors and zero-width joiners
+    .replace(/[\uFE00-\uFEFF]/g, '')
+    .replace(/\u200D/g, '')
+    // Clean up leftover whitespace
+    .replace(/  +/g, ' ')
+    .trim();
+}
+
 // ── Main speak function ──
 
 export interface SpeakOptions {
@@ -77,10 +90,13 @@ export function speak(text: string, options?: SpeakOptions): void {
   const synth = getSynth();
   if (!synth || !text) return;
 
+  const cleanText = stripEmoji(text);
+  if (!cleanText) return;
+
   try {
     synth.cancel();
     const ttsSettings = getTTSSettings();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = ttsSettings.accent === 'british' ? 'en-GB' : 'en-US';
     utterance.rate = options?.rate ?? ttsSettings.rate;
     utterance.pitch = options?.pitch ?? 1.05;
@@ -91,7 +107,6 @@ export function speak(text: string, options?: SpeakOptions): void {
 
     if (options?.onEnd) utterance.onend = options.onEnd;
 
-    // iOS Safari fix — voices may not be loaded yet
     if (synth.getVoices().length === 0) {
       synth.addEventListener('voiceschanged', () => {
         const v = getVoice(ttsSettings.accent);
@@ -106,7 +121,7 @@ export function speak(text: string, options?: SpeakOptions): void {
   }
 }
 
-// ── Preset speak functions for different content types ──
+// ── Preset speak functions ──
 
 export function speakQuestion(text: string, onEnd?: () => void): void {
   speak(text, { rate: 0.85, pitch: 1.05, onEnd });
@@ -143,7 +158,9 @@ export function speakWords(words: string[], pauseMs: number = 1000, onDone?: () 
         if (onDone) setTimeout(onDone, pauseMs);
         return;
       }
-      const u = new SpeechSynthesisUtterance(words[i]);
+      const clean = stripEmoji(words[i]);
+      if (!clean) { i++; next(); return; }
+      const u = new SpeechSynthesisUtterance(clean);
       u.lang = ttsSettings.accent === 'british' ? 'en-GB' : 'en-US';
       u.rate = 0.75;
       u.pitch = 1.05;
@@ -152,27 +169,24 @@ export function speakWords(words: string[], pauseMs: number = 1000, onDone?: () 
       u.onend = () => { i++; setTimeout(next, pauseMs); };
       synth.speak(u);
     };
-
     if (synth.getVoices().length === 0) {
       synth.addEventListener('voiceschanged', next, { once: true });
     } else {
       next();
     }
-  } catch {
-    // Speech not available
-  }
+  } catch { /* not available */ }
 }
 
-// ── Speak choices (A, B, C, D) ���─
+// ── Speak choices (A, B, C, D) ──
 
-export function speakChoices(choices: string[], _pauseMs: number = 800): void {
+export function speakChoices(choices: string[]): void {
   if (!getTTSSettings().readChoices) return;
   const labels = ['A', 'B', 'C', 'D', 'E'];
-  const text = choices.map((c, i) => `${labels[i] || ''}: ${c}`).join('. ');
+  const text = choices.map((c, i) => `${labels[i] || ''}: ${stripEmoji(c)}`).join('. ');
   speak(text, { rate: 0.85, pitch: 1.05 });
 }
 
-// ── Speak a sequence of items with pauses ──
+// ── Speak sequence with pauses ──
 
 export interface SequenceItem {
   text: string;
@@ -183,9 +197,10 @@ export interface SequenceItem {
 
 export async function speakSequence(items: SequenceItem[]): Promise<void> {
   for (const item of items) {
+    const clean = stripEmoji(item.text);
+    if (!clean) continue;
     await new Promise<void>((resolve) => {
-      speak(item.text, { rate: item.rate, pitch: item.pitch, onEnd: resolve });
-      // Failsafe — resolve after 15s max in case onEnd never fires
+      speak(clean, { rate: item.rate, pitch: item.pitch, onEnd: resolve });
       setTimeout(resolve, 15000);
     });
     if (item.pauseAfter) {
@@ -200,13 +215,11 @@ export function stopSpeaking(): void {
   try { getSynth()?.cancel(); } catch { /* ignore */ }
 }
 
-// ── Check support ──
-
 export function isSpeechSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
-// ── Settings helpers (read directly from localStorage) ──
+// ── Settings helpers ──
 
 export function shouldAutoRead(): boolean {
   return getTTSSettings().autoRead;
