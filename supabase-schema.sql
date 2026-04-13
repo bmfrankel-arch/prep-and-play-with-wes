@@ -119,6 +119,8 @@ CREATE INDEX IF NOT EXISTS idx_assessments_completed_at ON assessments(completed
 CREATE INDEX IF NOT EXISTS idx_word_collection_word ON word_collection(word);
 
 -- Row Level Security (allow all for anon key — single-family app)
+-- Safe to run multiple times — drops existing policies before recreating
+
 ALTER TABLE game_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE skill_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_plans ENABLE ROW LEVEL SECURITY;
@@ -130,13 +132,32 @@ ALTER TABLE weekly_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE animal_collection ENABLE ROW LEVEL SECURITY;
 ALTER TABLE battles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all for game_sessions" ON game_sessions;
 CREATE POLICY "Allow all for game_sessions" ON game_sessions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for skill_progress" ON skill_progress;
 CREATE POLICY "Allow all for skill_progress" ON skill_progress FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for lesson_plans" ON lesson_plans;
 CREATE POLICY "Allow all for lesson_plans" ON lesson_plans FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for word_collection" ON word_collection;
 CREATE POLICY "Allow all for word_collection" ON word_collection FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for assessments" ON assessments;
 CREATE POLICY "Allow all for assessments" ON assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for weekly_assessments" ON weekly_assessments;
 CREATE POLICY "Allow all for weekly_assessments" ON weekly_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for stories" ON stories;
 CREATE POLICY "Allow all for stories" ON stories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for weekly_reports" ON weekly_reports;
 CREATE POLICY "Allow all for weekly_reports" ON weekly_reports FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for animal_collection" ON animal_collection;
 CREATE POLICY "Allow all for animal_collection" ON animal_collection FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for battles" ON battles;
 CREATE POLICY "Allow all for battles" ON battles FOR ALL USING (true) WITH CHECK (true);
