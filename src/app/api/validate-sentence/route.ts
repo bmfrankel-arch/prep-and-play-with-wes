@@ -1,11 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function POST(req: NextRequest) {
   try {
     const { sentence, wordBank, targetSentence, acceptableAlternatives } = await req.json();
+    const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+    if (!anthropic) return NextResponse.json({ valid: true, feedback: 'Great sentence!' });
 
     const prompt = `A 5-year-old child built this sentence from a word bank: "${sentence}"
 

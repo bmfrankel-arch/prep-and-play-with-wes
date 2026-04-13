@@ -1,11 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function POST(req: NextRequest) {
   try {
     const { winner, loser, terrain, winnerStats, loserStats, isTie } = await req.json();
+    const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+    if (!anthropic) return NextResponse.json({ explanation: 'What an incredible battle! Both animals fought bravely!' });
 
     const prompt = isTie
       ? `Write a 2-sentence exciting tie explanation for a 5-year-old in the style of the "Who Would Win?" book series. ${winner} and ${loser} fought to a tie in ${terrain}. Both were perfectly matched! Simple language, present tense. Max 40 words. Return plain text only.`

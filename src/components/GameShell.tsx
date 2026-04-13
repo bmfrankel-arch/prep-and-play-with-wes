@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { SkillArea, SubGame, SKILL_CONFIG, DifficultyLevel, LEVEL_NAMES, GameQuestion } from '@/lib/types';
 import { getSkillProgress, updateSkillProgress, saveGameSession, saveWord, getParentSettings } from '@/lib/db';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
-import { speakQuestion, speakChoices, stopSpeaking, shouldAutoRead, shouldReadChoices } from '@/lib/speech';
+import { speakQuestion, speakChoices, speak, stopSpeaking, shouldAutoRead, shouldReadChoices } from '@/lib/speech';
+import { getFallbackQuestions } from '@/data/fallbacks';
 import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
 import PronunciationChallenge from './PronunciationChallenge';
@@ -66,10 +67,13 @@ export default function GameShell({
   const [error, setError] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  const [isFallback, setIsFallback] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
     setError(null);
+    setIsFallback(false);
 
     // Check prefetch cache first
     const cached = getPrefetchedQuestions(skillArea, subGame, lvl);
@@ -79,27 +83,51 @@ export default function GameShell({
       return;
     }
 
-    try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          skillArea,
-          subGame,
-          level: lvl,
-          count: totalQuestions,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        return;
+    // Try API with timeout and auto-retry
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
+
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skillArea, subGame, level: lvl, count: totalQuestions }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        const data = await res.json();
+        if (data.questions?.length) {
+          setQuestions(data.questions);
+          if (data.is_fallback) setIsFallback(true);
+          setLoading(false);
+          return;
+        }
+        if (data.error && attempt === 0) {
+          // Retry once after 1s
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+      } catch (err) {
+        console.error(`Fetch attempt ${attempt + 1} failed:`, err);
+        if (attempt === 0) {
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
       }
-      setQuestions(data.questions || []);
-    } catch {
-      setError('Could not load questions. Check your API key and try again.');
     }
+
+    // Both attempts failed — use fallback
+    const fallback = getFallbackQuestions(skillArea, subGame, lvl) as GameQuestion[] | null;
+    if (fallback?.length) {
+      setQuestions(fallback);
+      setIsFallback(true);
+      setLoading(false);
+      return;
+    }
+
+    setError('Could not load questions. Tap Try Again or check your connection.');
     setLoading(false);
   }, [skillArea, subGame, totalQuestions]);
 
@@ -114,6 +142,19 @@ export default function GameShell({
       await fetchQuestions(lvl);
     })();
   }, [skillArea, fetchQuestions]);
+
+  // 15s loading failsafe — never show spinner forever
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => {
+      if (loading) {
+        const fb = getFallbackQuestions(skillArea, subGame, level) as GameQuestion[] | null;
+        if (fb?.length) { setQuestions(fb); setIsFallback(true); setLoading(false); }
+        else { setError('Taking too long. Please try again.'); setLoading(false); }
+      }
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [loading, skillArea, subGame, level]);
 
   // Failsafe: clear feedback toast after 2s no matter what
   useEffect(() => {
@@ -418,20 +459,24 @@ export default function GameShell({
   }
 
   if (error) {
+    // TTS error announcement
+    if (retryCount === 0) speak("Oops! Something went wrong. Let's try again, Wes!");
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-xl">
-          <p className="text-5xl mb-4">😕</p>
-          <h2 className="text-2xl font-bold text-navy mb-4">Oops!</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <p className="text-5xl mb-4">{config.badges[level]}</p>
+          <h2 className="text-2xl font-bold text-navy mb-2">Oops! Something went wrong.</h2>
+          <p className="text-gray-500 mb-2">Let&apos;s try again, Wes!</p>
+          <p className="text-gray-400 text-xs mb-6">{error}</p>
           <div className="flex gap-3 justify-center">
-            <button onClick={() => fetchQuestions(level)} className="game-btn bg-grass text-white px-6">
-              Try Again
+            <button onClick={() => { setRetryCount(r => r + 1); fetchQuestions(level); }} className="game-btn bg-grass text-white px-6">
+              Try Again! 🔄
             </button>
             <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">
-              Home
+              🏠 Home
             </button>
           </div>
+          {retryCount >= 3 && <p className="text-xs text-gray-400 mt-4">Having trouble connecting. Please check your internet.</p>}
         </div>
       </div>
     );
@@ -443,6 +488,7 @@ export default function GameShell({
   return (
     <div className="min-h-screen p-4 md:p-6">
       {showConfetti && <Confetti duration={2000} />}
+      {isFallback && <div className="fixed top-2 left-2 z-40 text-[10px] text-gray-300 bg-white/80 px-2 py-1 rounded-full">📚 Practice mode</div>}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">

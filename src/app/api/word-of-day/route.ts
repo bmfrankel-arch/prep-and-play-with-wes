@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function GET() {
+  const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+  if (!anthropic) return NextResponse.json({ word: 'Brilliant', definition: 'Very bright or very clever', example_sentence: 'Wes had a brilliant idea!', syllable_breakdown: 'BRIL • liant', fun_fact: 'Diamonds are brilliant because they reflect light in special ways!' });
   try {
     const prompt = `Generate a single "Word of the Day" for a 5-year-old. Pick an interesting but learnable vocabulary word.
 

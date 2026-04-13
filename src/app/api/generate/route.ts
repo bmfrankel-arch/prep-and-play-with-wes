@@ -1,8 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { VOCABULARY_BANK } from '@/data/vocabulary';
+import { getFallbackQuestions } from '@/data/fallbacks';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getClient(): Anthropic | null {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  return new Anthropic({ apiKey: key });
+}
 
 function getVocabSample(level: number, count: number = 15): string {
   const eligible = VOCABULARY_BANK.filter(w => w.difficulty_level <= level);
@@ -11,8 +16,25 @@ function getVocabSample(level: number, count: number = 15): string {
 }
 
 export async function POST(req: NextRequest) {
+  let skillArea = '', subGame = '', level = 1;
+
   try {
-    const { skillArea, subGame, level, count = 1 } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+    skillArea = body.skillArea;
+    subGame = body.subGame;
+    level = body.level || 1;
+    const count = body.count || 1;
+
+    const anthropic = getClient();
+    if (!anthropic) {
+      console.error('ANTHROPIC_API_KEY not set — returning fallback');
+      const fallback = getFallbackQuestions(skillArea, subGame, level);
+      if (fallback) return NextResponse.json({ questions: fallback, is_fallback: true });
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    }
 
     const prompts: Record<string, Record<string, string>> = {
       word_wizard: {
@@ -276,9 +298,17 @@ Return ONLY valid JSON object (not array), no markdown.`,
     }
     return NextResponse.json({ questions: Array.isArray(parsed) ? parsed : [parsed] });
   } catch (error) {
-    console.error('API error:', error);
+    console.error('API generate error:', error);
+    console.error('Details:', error instanceof Error ? error.message : JSON.stringify(error));
+
+    // Return fallback content so the game still works
+    const fallback = getFallbackQuestions(skillArea, subGame, level);
+    if (fallback) {
+      return NextResponse.json({ questions: fallback, is_fallback: true });
+    }
+
     return NextResponse.json(
-      { error: 'Failed to generate questions' },
+      { error: 'Failed to generate questions', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

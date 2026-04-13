@@ -1,7 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getClient(): Anthropic | null {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  return new Anthropic({ apiKey: key });
+}
 
 const NO_IMAGE_RULE = `
 CRITICAL RULE — NO IMAGE REFERENCES:
@@ -69,6 +73,11 @@ Return a JSON array of 10 objects, each with:
 - "skill_area": the skill area this question tests
 
 Return ONLY valid JSON array, no markdown.`;
+    }
+
+    const anthropic = getClient();
+    if (!anthropic) {
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
     const message = await anthropic.messages.create({

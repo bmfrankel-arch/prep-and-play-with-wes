@@ -1,7 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getClient(): Anthropic | null {
+  return process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,6 +43,9 @@ Story Builder activities include: building sentences from word cards, arranging 
 
 Make activities engaging, playful, and educational. Reference kitchen items, toys, books, outdoor spaces, etc.
 Return ONLY valid JSON array, no markdown.`;
+
+    const anthropic = getClient();
+    if (!anthropic) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
