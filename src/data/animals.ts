@@ -410,6 +410,19 @@ export const ANIMALS: Animal[] = [
     funFact: 'Can leap completely out of the water and do backflips!',
     ttsText: 'Manta Ray! Has the largest brain of any fish!',
   },
+  {
+    id: 'red_panda',
+    name: 'Red Panda',
+    emoji: '🐼',
+    rarity: 'rare',
+    strength: 2,
+    speed: 3,
+    defense: 3,
+    powerLevel: 58,
+    superpower: 'Can climb headfirst down trees using rotating ankles — a skill almost no other animal has!',
+    funFact: 'Is not closely related to giant pandas at all — it is the only living member of its own family!',
+    ttsText: 'Red Panda! Can climb headfirst down trees using rotating ankles!',
+  },
 
   // ===== COMMON (20) =====
   {

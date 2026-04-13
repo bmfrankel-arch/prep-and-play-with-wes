@@ -394,11 +394,26 @@ export async function syncOfflineQueue(): Promise<void> {
 }
 
 export async function getAnimalCollection(): Promise<AnimalUnlock[]> {
-  if (!isSupabaseConfigured()) {
-    return getLocal<AnimalUnlock[]>('animal_collection', []);
+  const local = getLocal<AnimalUnlock[]>('animal_collection', []);
+
+  if (!isSupabaseConfigured()) return local;
+
+  try {
+    const { data, error } = await supabase.from('animal_collection').select('*').order('unlocked_at', { ascending: false });
+    if (error) {
+      console.error('Failed to load animal collection from Supabase:', error.message);
+      return local; // Fall back to local
+    }
+    const remote = (data || []) as AnimalUnlock[];
+
+    // Merge: Supabase is authoritative but include any local-only animals
+    const remoteIds = new Set(remote.map(a => a.animal_id));
+    const localOnly = local.filter(a => !remoteIds.has(a.animal_id));
+    return [...remote, ...localOnly];
+  } catch (err) {
+    console.error('Animal collection fetch error:', err);
+    return local;
   }
-  const { data } = await supabase.from('animal_collection').select('*').order('unlocked_at', { ascending: false });
-  return (data || []) as AnimalUnlock[];
 }
 
 // ── Battles ──

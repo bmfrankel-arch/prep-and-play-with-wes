@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkillArea, SkillProgress, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getAllSkillProgress, getStreak, getParentSettings, getAnimalCollection } from '@/lib/db';
+import { getAllSkillProgress, getStreak, getParentSettings, getAnimalCollection, syncOfflineQueue } from '@/lib/db';
 import { speak, shouldGreet } from '@/lib/speech';
 import BadgeDisplay from '@/components/BadgeDisplay';
 import WordOfDayCard, { autoPlayWordOfDay } from '@/components/WordOfDayCard';
@@ -49,6 +49,9 @@ export default function HomePage() {
       setStreak(s);
       setAnimalCount(ac.length);
       setLoading(false);
+
+      // Sync any pending offline saves
+      syncOfflineQueue();
 
       // Check scheduled assessment
       const settings = getParentSettings();
