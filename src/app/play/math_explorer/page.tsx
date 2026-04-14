@@ -10,7 +10,9 @@ import BadgeDisplay from '@/components/BadgeDisplay';
 const subGames = [
   { id: 'counting_adventures', name: 'Counting Adventures', icon: '🧮', desc: 'Fun word problems!' },
   { id: 'more_or_less', name: 'More or Less', icon: '⚖️', desc: 'Compare numbers!' },
-  { id: 'algebra_puzzles', name: 'Algebra Puzzles', icon: 'x=?', desc: 'Find x, y, and n!' },
+  { id: 'algebra_puzzles', name: 'Algebra Puzzles', icon: '__=?', desc: 'Find the missing number!' },
+  { id: 'addition_tables', name: 'Addition Tables', icon: '➕', desc: 'Practice adding!' },
+  { id: 'subtraction_tables', name: 'Subtraction Tables', icon: '➖', desc: 'Practice subtracting!' },
 ];
 
 export default function MathExplorerPage() {

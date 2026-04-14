@@ -5,6 +5,7 @@ export type SubGame =
   | 'shape_sequences' | 'size_color_sorting' | 'odd_one_out'
   | 'remember_list' | 'order_recall' | 'story_details'
   | 'counting_adventures' | 'more_or_less' | 'algebra_puzzles'
+  | 'addition_tables' | 'subtraction_tables' | 'mixed_tables'
   | 'meet_greet' | 'what_would_you_do' | 'i_dont_know'
   | 'story_builder';
 

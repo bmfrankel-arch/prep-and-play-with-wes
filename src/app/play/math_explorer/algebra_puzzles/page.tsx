@@ -4,20 +4,19 @@ import GameShell from '@/components/GameShell';
 import NumberLine from '@/components/NumberLine';
 import { GameQuestion, DifficultyLevel } from '@/lib/types';
 
-// Render equation text with styled variable boxes for x, y, n
+// Render equation with blank box for __ (double underscore)
 function StyledEquation({ text }: { text: string }) {
-  // Split on variable letters that appear as standalone tokens
-  const parts = text.split(/\b([xyn])\b/g);
+  // Split on __ or standalone x/y/n (backwards compatibility)
+  const parts = text.split(/(__|\b[xyn]\b)/g);
   return (
     <>
       {parts.map((part, i) => {
-        if (part === 'x' || part === 'y' || part === 'n') {
+        if (part === '__' || part === 'x' || part === 'y' || part === 'n') {
           return (
-            <span
-              key={i}
-              className="inline-flex items-center justify-center bg-navy text-white font-extrabold rounded-lg px-3 py-1 mx-1 text-3xl min-w-[44px]"
-            >
-              {part}
+            <span key={i}
+              className="inline-flex items-center justify-center border-3 border-dashed border-navy rounded-lg mx-1 text-3xl min-w-[60px] min-h-[50px] text-navy font-extrabold"
+              style={{ borderWidth: '3px', borderStyle: 'dashed' }}>
+              ?
             </span>
           );
         }
@@ -38,30 +37,20 @@ function AlgebraQuestion(question: GameQuestion, onAnswer: (a: string) => void, 
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         {question.choices.map(choice => (
-          <button
-            key={choice}
-            onClick={() => onAnswer(choice)}
-            onTouchEnd={(e) => e.currentTarget.blur()}
+          <button key={choice} onClick={() => onAnswer(choice)} onTouchEnd={e => e.currentTarget.blur()}
             className={selected === choice
               ? 'game-btn border-3 border-navy bg-blue-50 text-navy scale-105 text-3xl font-extrabold px-4 py-6 focus:outline-none relative'
-              : 'game-btn bg-gold/10 hover:bg-gold/20 text-navy border-2 border-gold/30 text-3xl font-extrabold px-4 py-6 focus:outline-none'}
-          >
+              : 'game-btn bg-gold/10 text-navy border-2 border-gold/30 text-3xl font-extrabold px-4 py-6 focus:outline-none'}>
             {choice}
             {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
           </button>
         ))}
       </div>
-      {level <= 2 && <NumberLine max={level === 1 ? 20 : 50} />}
+      {level <= 2 && <NumberLine max={20} />}
     </div>
   );
 }
 
 export default function AlgebraPuzzlesPage() {
-  return (
-    <GameShell
-      skillArea="math_explorer"
-      subGame="algebra_puzzles"
-      renderQuestion={AlgebraQuestion}
-    />
-  );
+  return <GameShell skillArea="math_explorer" subGame="algebra_puzzles" renderQuestion={AlgebraQuestion} />;
 }

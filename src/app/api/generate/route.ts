@@ -191,23 +191,21 @@ For each, return JSON array with objects containing:
 
 Return ONLY valid JSON array, no markdown.`,
 
-        algebra_puzzles: `Generate ${count} missing number puzzle(s) for a 5-year-old at ${level === 1 ? 'Level 1: Missing number in addition and subtraction equations ONLY, up to 20. Use "x" for the unknown (e.g. "4 + x = 11" or "x - 3 = 5"). No multiplication or division. 4 answer choices.' : level === 2 ? 'Level 2: Missing number in addition and subtraction equations ONLY, up to 50. Use "x" (e.g. "x + 15 = 28" or "42 - x = 19"). No multiplication or division. 4 answer choices.' : 'Level 3: Two-variable addition/subtraction problems (e.g. "x + y = 10, if x = 3, what is y?"), missing numbers in sequences using "n", and simple multiplication (2x = 8, 3x = 9) but NEVER division. 4 answer choices.'}.
+        algebra_puzzles: `Generate ${count} missing number puzzle(s) for a 5-year-old at ${level === 1 ? 'Level 1: Addition and subtraction only, numbers up to 20. Use __ (blank) for the unknown. e.g. "3 + __ = 8" or "__ - 4 = 5"' : level === 2 ? 'Level 2: Addition and subtraction only, numbers up to 20. Use __ (blank). Include missing-first, missing-middle, and missing-result variants.' : 'Level 3: Addition and subtraction up to 20. Also include simple sequences like "2, 4, __, 8". Use __ (blank) always.'}.
 
-IMPORTANT RULES FOR VARIABLE LETTERS:
-- Use lowercase "x" as the primary unknown variable
-- Use "y" as the second variable in two-variable problems
-- Use "n" for number sequence problems (e.g. "n, 4, 6, 8 — what is n?")
-- NEVER use ⭐, ☐, or any emoji as variable symbols
-- NEVER use letters that look like numbers (l, o, O)
-- Use × for multiplication (not x or *), ÷ for division
+RULES:
+- Use __ (double underscore) for the missing number — NEVER use x, y, n, or letter variables
+- All numbers must be 20 or below
+- Addition and subtraction ONLY (no multiplication or division)
+- 4 answer choices per question
 
 For each, return JSON array with objects containing:
-- "question": the equation displayed with variable letters (e.g. "4 + x = 11" or "x + y = 10, if x = 3, what is y?")
+- "question": equation with __ for blank (e.g. "3 + __ = 8")
 - "choices": array of 4 number answers (as strings)
 - "correct_answer": the correct number (as string)
-- "explanation": shows the solved equation with the answer filled in (e.g. "The answer is 7! So x = 7, because 4 + 7 = 11 ✓")
-- "tts_reading": a natural speech version of the question (e.g. "4 plus x equals 11. What is x?")
-- "work_shown": object with "steps" (array showing how to solve step by step), "tts" (spoken explanation), and "equation_display" (filled-in equation like "4 + 7 = 11 ✓")
+- "explanation": filled-in equation (e.g. "3 + 5 = 8 — the missing number was 5!")
+- "tts_reading": spoken version (e.g. "Three plus what equals eight? What number goes in the blank?")
+- "work_shown": object with "steps" array and "tts" string
 
 Return ONLY valid JSON array, no markdown.`,
       },
