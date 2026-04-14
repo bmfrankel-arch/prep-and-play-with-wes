@@ -44,10 +44,24 @@ const DEFAULT_PROGRESS: SkillProgress = {
   unlocks_earned: [],
 };
 
+function getStartingLevel(skillArea: SkillArea): DifficultyLevel {
+  // Pattern Detective starts at Level 2 — Wes is ready for multi-attribute patterns
+  return skillArea === 'pattern_detective' ? 2 : 1;
+}
+
 export async function getSkillProgress(skillArea: SkillArea): Promise<SkillProgress> {
+  const startLevel = getStartingLevel(skillArea);
+  const defaults: SkillProgress = { ...DEFAULT_PROGRESS, skill_area: skillArea, current_level: startLevel };
+
   if (!isSupabaseConfigured()) {
     const all = getLocal<Record<string, SkillProgress>>('skill_progress', {});
-    return all[skillArea] || { ...DEFAULT_PROGRESS, skill_area: skillArea };
+    const stored = all[skillArea];
+    if (!stored) return defaults;
+    // Ensure pattern_detective never shows below its starting level
+    if (skillArea === 'pattern_detective' && stored.current_level < startLevel) {
+      stored.current_level = startLevel as DifficultyLevel;
+    }
+    return stored;
   }
 
   const { data, error } = await supabase
@@ -56,8 +70,10 @@ export async function getSkillProgress(skillArea: SkillArea): Promise<SkillProgr
     .eq('skill_area', skillArea)
     .single();
 
-  if (error || !data) {
-    return { ...DEFAULT_PROGRESS, skill_area: skillArea };
+  if (error || !data) return defaults;
+  // Ensure pattern_detective never shows below starting level
+  if (skillArea === 'pattern_detective' && (data as SkillProgress).current_level < startLevel) {
+    (data as SkillProgress).current_level = startLevel as DifficultyLevel;
   }
   return data as SkillProgress;
 }
@@ -69,12 +85,20 @@ export async function getAllSkillProgress(): Promise<SkillProgress[]> {
 
   if (!isSupabaseConfigured()) {
     const all = getLocal<Record<string, SkillProgress>>('skill_progress', {});
-    return skills.map(s => all[s] || { ...DEFAULT_PROGRESS, skill_area: s });
+    return skills.map(s => {
+      const stored = all[s] || { ...DEFAULT_PROGRESS, skill_area: s, current_level: getStartingLevel(s) };
+      if (s === 'pattern_detective' && stored.current_level < 2) stored.current_level = 2 as DifficultyLevel;
+      return stored;
+    });
   }
 
   const { data } = await supabase.from('skill_progress').select('*');
   const existing = (data || []) as SkillProgress[];
-  return skills.map(s => existing.find(e => e.skill_area === s) || { ...DEFAULT_PROGRESS, skill_area: s });
+  return skills.map(s => {
+    const found = existing.find(e => e.skill_area === s) || { ...DEFAULT_PROGRESS, skill_area: s, current_level: getStartingLevel(s) };
+    if (s === 'pattern_detective' && found.current_level < 2) found.current_level = 2 as DifficultyLevel;
+    return found;
+  });
 }
 
 export async function updateSkillProgress(progress: SkillProgress): Promise<void> {

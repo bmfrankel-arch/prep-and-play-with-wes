@@ -85,43 +85,43 @@ Return ONLY valid JSON array, no markdown.`,
       },
 
       pattern_detective: {
-        shape_sequences: `Generate ${count} shape/emoji pattern sequence(s) for a 5-year-old at ${level === 1 ? 'beginner level. Use simple 2-element repeating patterns (e.g. 🔴🔵🔴🔵❓) with obvious distractors' : level === 2 ? 'intermediate level. Use 3-element patterns with two changing attributes' : 'advanced level. Use complex multi-attribute patterns, 5-element sequences'}.
+        shape_sequences: `Generate ${count} challenging pattern sequence(s) for a 5-year-old at ${level === 1 ? 'Level 1: Use 3-element color repeats (🔴🔵🟢🔴🔵🟢❓), ABBA patterns, or shape alternating patterns. Never use simple 2-element alternating. Always vary the pattern type.' : level === 2 ? 'Level 2: Use TWO attributes changing simultaneously. Pattern types: growing quantity (2, 3, 4 circles — what is next?), direction rotation (⬆️➡️⬇️⬅️⬆️➡️❓), skip patterns (🔴🔴🔵🔴🔴🔵❓), decreasing quantity, mirror/symmetry patterns. Each question must use a DIFFERENT pattern type.' : 'Level 3: Use complex multi-rule patterns. Types: two interleaved sequences, doubling quantities (1,2,4,8), three attributes cycling, rule-change patterns (1 red 1 blue, 1 red 2 blue, 1 red 3 blue...), growing then color change. Distractors must be plausible — one step off or applying a simpler wrong rule.'}.
 
 For each, return JSON array with objects containing:
-- "emoji_pattern": the visible pattern string with ❓ at the end
-- "tts_reading": a spoken description of the pattern WITHOUT emoji (e.g. "Red circle, blue circle, red circle, blue circle. What comes next?")
-- "choices": array of 3-4 emoji options
-- "correct_answer": the correct emoji
-- "explanation": why this emoji completes the pattern
+- "emoji_pattern": the visible emoji pattern string with ❓ at the end
+- "tts_reading": spoken description of the pattern WITHOUT emoji, describing each element clearly
+- "choices": array of 4 emoji answer options
+- "correct_answer": the correct emoji answer
+- "explanation": 1-2 sentences explaining the pattern rule simply for a child
+- "tts_explanation": spoken version of the explanation for text-to-speech
 
-Use these emojis: 🔴🔵🟢🟡🟣🟠⬛⬜🔷🔶🔺🔻⭐💜💚💛
+Use emojis: 🔴🔵🟢🟡🟣🟠⬛⬜🔷🔶🔺🔻⬆️➡️⬇️⬅️⭕
+Make wrong choices plausible — never random unrelated options.
 Return ONLY valid JSON array, no markdown.`,
 
-        size_color_sorting: `Generate ${count} size/color sorting exercise(s) for a 5-year-old at ${level === 1 ? 'beginner' : level === 2 ? 'intermediate' : 'advanced'} level.
+        size_color_sorting: `Generate ${count} sorting/rule-finding exercise(s) for a 5-year-old at ${level === 1 ? 'Level 1: Sort by ONE attribute only (color or size). Find which item breaks the rule.' : level === 2 ? 'Level 2: Sort by TWO attributes simultaneously (color AND size, or color AND shape). Show 4-5 items where one breaks two rules. Ask which item does not belong and why.' : 'Level 3: Sort by THREE attributes (color, size, shape). Or find a hidden sorting rule from a sequence. Show items that could belong to multiple groups — child must identify the correct grouping.'}.
 
 For each, return JSON array with objects containing:
-- "question": describe a set of objects with attributes and ask what comes next or what the rule is
-- "objects": array of object descriptions (e.g. "big red ball", "small red ball")
+- "question": describe the items and ask what the rule is or which does not belong
+- "objects": array of 4-5 object descriptions (e.g. "big red circle", "small blue square")
 - "choices": array of 3-4 answer options
 - "correct_answer": the correct answer
-- "explanation": child-friendly explanation
+- "explanation": clear child-friendly explanation of the sorting rule
+- "tts_explanation": spoken version for text-to-speech
 
-Use familiar objects: balls, stars, hearts, blocks, animals.
 Return ONLY valid JSON array, no markdown.`,
 
-        odd_one_out: `Generate ${count} visual odd-one-out exercise(s) for a 5-year-old at ${level === 1 ? 'beginner' : level === 2 ? 'intermediate' : 'advanced'} level.
+        odd_one_out: `Generate ${count} odd-one-out exercise(s) for a 5-year-old at ${level === 1 ? 'Level 1: Clear category difference — all animals except one object, all fruits except one vehicle, etc.' : level === 2 ? 'Level 2: Subtle PROPERTY difference — things that can fly except one (eagle, butterfly, penguin, bee — penguin cannot fly), things that are alive except one, things you eat with except one (fork, spoon, knife, plate — plate is not utensil). Requires genuine reasoning not just visual categories.' : 'Level 3: Abstract PROPERTY difference — things that come in pairs except one (shoes, gloves, socks, hat), things that grow except one, things that can be opened except one, things bigger than a house except one. Requires abstract thinking.'}.
 
 For each, return JSON array with objects containing:
 - "question": "Which one is different?"
-- "objects": array of 4 simple object names (3 share a property, 1 does not)
+- "objects": array of 4 simple object names
 - "choices": the 4 object names as answer choices
 - "correct_answer": the odd one out
-- "explanation": why it's different
+- "explanation": clear explanation of WHY it does not belong — must teach the reasoning
+- "tts_explanation": spoken version for text-to-speech
 
-IMPORTANT: Only use objects from this approved emoji list (one word each):
-apple, banana, orange, grape, strawberry, watermelon, lemon, peach, pear, cherry, carrot, broccoli, corn, tomato, potato, dog, cat, rabbit, bear, fox, tiger, lion, cow, pig, chicken, duck, frog, fish, butterfly, bee, car, bus, train, plane, boat, bicycle, house, tree, flower, sun, moon, star, cloud, rainbow, fire, snowflake, ball, balloon, book, pencil, scissors, hat, shoe, crown, cake, candy, cookie, pizza, bread, elephant, horse, monkey, bird, turtle, whale, dolphin, octopus, mushroom, rose, key
-
-Do NOT use multi-word object names like "red cherry" — use single words only: "cherry", "apple", etc.
+Use objects from this list: apple, banana, orange, grape, strawberry, cherry, dog, cat, rabbit, bear, fox, tiger, lion, cow, pig, chicken, duck, frog, fish, butterfly, bee, car, bus, train, plane, boat, bicycle, house, tree, flower, sun, moon, star, cloud, rainbow, fire, snowflake, ball, book, pencil, scissors, hat, shoe, crown, cake, pizza, elephant, horse, bird, turtle, whale, dolphin, fork, spoon, knife, plate, gloves, socks, door, wall, pillow, rock
 Return ONLY valid JSON array, no markdown.`,
       },
 

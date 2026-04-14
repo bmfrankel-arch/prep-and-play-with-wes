@@ -293,19 +293,27 @@ export default function GameShell({
       }
     }
 
-    // For Math Explorer in regular game mode: show work panel after feedback
-    const shouldShowWork = isMathExplorer && (settings.show_math_work !== false);
+    // Show explanation panel for Math Explorer and Pattern Detective in regular game mode
+    const isPatternDetective = skillArea === 'pattern_detective';
+    const shouldShowWork = (isMathExplorer && settings.show_math_work !== false) || isPatternDetective;
     if (shouldShowWork) {
       setTimeout(() => {
         setFeedback(null);
         const q = questions[currentIndex];
-        const work = q?.work_shown || generateFallbackWorkShown(q?.question || '', q?.correct_answer || '');
-        setCurrentWorkShown(work);
+        // Use tts_explanation for pattern detective, work_shown for math
+        const work = q?.work_shown || {
+          steps: q?.explanation ? [q.explanation] : ['The answer is ' + (q?.correct_answer || '')],
+          tts: (q as unknown as Record<string, string>)?.tts_explanation || q?.explanation || `The answer is ${q?.correct_answer}`,
+        };
+        if (isMathExplorer && !q?.work_shown) {
+          const fallback = generateFallbackWorkShown(q?.question || '', q?.correct_answer || '');
+          setCurrentWorkShown(fallback);
+        } else {
+          setCurrentWorkShown(work);
+        }
         setShowMathWork(true);
         setWorkButtonReady(false);
-        // Read explanation aloud
         setTimeout(() => speak(work.tts, { rate: 0.80, pitch: 1.05, onEnd: () => setWorkButtonReady(true) }), 500);
-        // Failsafe: enable button after 10s
         setTimeout(() => setWorkButtonReady(true), 10000);
       }, 1500);
     } else {
@@ -602,7 +610,9 @@ export default function GameShell({
       {showMathWork && currentWorkShown && (
         <div className="fixed inset-x-0 bottom-0 z-40 animate-slide-up">
           <div className="bg-[#FFF8E7] border-t-2 border-navy rounded-t-3xl p-6 shadow-2xl max-h-[60vh] overflow-y-auto">
-            <h3 className="text-lg font-extrabold text-navy mb-4 text-center">Here&apos;s how we work it out! 🧮</h3>
+            <h3 className="text-lg font-extrabold text-navy mb-4 text-center">
+              {isMathExplorer ? "Here's how we work it out! 🧮" : "Here's the rule! 🔍"}
+            </h3>
 
             {/* Steps */}
             <div className="space-y-3 mb-4">
