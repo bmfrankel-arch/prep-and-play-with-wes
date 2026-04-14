@@ -219,7 +219,9 @@ For each, return JSON array with objects containing:
 - "explanation": why this is a good response (for parent)
 
 Make scenarios warm and realistic: meeting a teacher, a new classmate, a school principal, a testing psychologist.
-IMPORTANT: Always use the child's name "Wes" in suggested answers and scenarios. Never use placeholder text like "[child's name]" or "[name]".
+CRITICAL: Every scenario must explicitly invite Wes to share his name PLUS something personal about himself. Never ask only "what's your name?" — always add "and tell me one thing you love doing" or "and what are you really good at?" or similar.
+Always use "Wes" in suggested answers. Never use "[child's name]".
+Suggested answers must always include name AND a personal detail (e.g. "Hi! I'm Wes and I love animals — especially sharks!").
 Return ONLY valid JSON array, no markdown.`,
 
         what_would_you_do: `Generate ${count} social situation exercise(s) for a 5-year-old at ${level === 1 ? 'beginner' : level === 2 ? 'intermediate' : 'advanced'} level.
