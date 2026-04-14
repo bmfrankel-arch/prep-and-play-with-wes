@@ -32,12 +32,39 @@ interface StorySession {
   sentences: SentenceData[];
 }
 
+// Border-only colors for building phase (subtle hint)
 const TYPE_COLORS: Record<string, string> = {
-  noun: 'bg-blue-100 border-blue-300 text-blue-800',
-  verb: 'bg-green-100 border-green-300 text-green-800',
-  adjective: 'bg-yellow-100 border-yellow-300 text-yellow-800',
-  article: 'bg-gray-100 border-gray-300 text-gray-600',
+  noun: 'bg-white border-blue-400 text-blue-800',
+  verb: 'bg-white border-green-400 text-green-800',
+  adjective: 'bg-white border-yellow-400 text-yellow-800',
+  adverb: 'bg-white border-orange-400 text-orange-800',
+  article: 'bg-white border-gray-300 text-gray-600',
+  preposition: 'bg-white border-purple-400 text-purple-800',
+  conjunction: 'bg-white border-pink-400 text-pink-800',
 };
+
+// Solid colors for Word Detective phase
+const TYPE_SOLID: Record<string, string> = {
+  noun: 'bg-blue-500 text-white',
+  verb: 'bg-green-500 text-white',
+  adjective: 'bg-yellow-500 text-navy',
+  adverb: 'bg-orange-500 text-white',
+  article: 'bg-gray-400 text-white',
+  preposition: 'bg-purple-500 text-white',
+  conjunction: 'bg-pink-500 text-white',
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  noun: 'NOUN', verb: 'VERB', adjective: 'ADJECTIVE', adverb: 'ADVERB',
+  article: 'ARTICLE', preposition: 'PREPOSITION', conjunction: 'CONJUNCTION',
+};
+
+interface GrammarWord {
+  word: string;
+  type: string;
+  child_explanation: string;
+  why_here: string;
+}
 
 // safeSpeakText replaced by centralized speech.ts imports
 
@@ -77,6 +104,13 @@ export default function StoryBuilderPage() {
   const [consCorrect, setConsCorrect] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [failCount, setFailCount] = useState(0);
+  const [showWordDetective, setShowWordDetective] = useState(false);
+  const [grammarBreakdown, setGrammarBreakdown] = useState<GrammarWord[]>([]);
+  const [activeTileIndex, setActiveTileIndex] = useState<number | null>(null);
+  const [tappedCount, setTappedCount] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [grammarStamps, setGrammarStamps] = useState(0);
+  const [sentenceSummary, setSentenceSummary] = useState('');
 
   const fetchSession = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
@@ -207,16 +241,27 @@ export default function StoryBuilderPage() {
     })();
 
     setValidating(false);
+    // Transition to Word Detective phase after celebrating
     setTimeout(() => {
       setFeedback(null);
-      setPlacedWords([]);
-      const totalSentences = session?.sentences?.length ?? 3;
-      if (sentenceIndex + 1 >= totalSentences) {
-        finishStory(newCompleted);
-      } else {
-        setSentenceIndex(i => i + 1);
-      }
+      // Show Word Detective if we have grammar data from the API response
+      setShowWordDetective(true);
+      setActiveTileIndex(null);
+      setTappedCount(0);
+      setTimeout(() => speak("Brilliant sentence, Wes! Now let's be Word Detectives and find out what each word does!", { rate: 0.85, pitch: 1.1 }), 500);
     }, 1500);
+  };
+
+  const advanceFromWordDetective = () => {
+    setShowWordDetective(false);
+    if (tappedCount >= 3) setGrammarStamps(g => g + 1);
+    setPlacedWords([]);
+    const totalSentences = session?.sentences?.length ?? 3;
+    if (sentenceIndex + 1 >= totalSentences) {
+      finishStory(completedSentences);
+    } else {
+      setSentenceIndex(i => i + 1);
+    }
   };
 
   const submitSentence = async () => {
@@ -236,11 +281,24 @@ export default function StoryBuilderPage() {
           wordBank: currentSentence.word_bank,
           targetSentence: currentSentence.target_sentence,
           acceptableAlternatives: currentSentence.acceptable_alternatives,
+          level,
         }),
       });
       const data = await res.json();
 
       if (data.valid) {
+        // Capture grammar breakdown for Word Detective
+        if (data.grammar_breakdown?.length) {
+          setGrammarBreakdown(data.grammar_breakdown);
+          setSentenceSummary(data.sentence_summary || '');
+        } else {
+          // Fallback: use word bank types
+          setGrammarBreakdown(placedWords.map(w => ({
+            word: w.word, type: w.type || 'article',
+            child_explanation: `${w.word} is a ${(w.type || 'helper').toUpperCase()} word in our sentence!`,
+            why_here: `${w.word} goes here to help our sentence make sense!`,
+          })));
+        }
         acceptSentence(sentence);
         return;
       } else {
@@ -342,6 +400,72 @@ export default function StoryBuilderPage() {
             <button onClick={() => fetchSession(level)} className="game-btn bg-grass text-white px-6">Try Again</button>
             <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Word Detective phase — grammar exploration
+  if (showWordDetective && grammarBreakdown.length > 0) {
+    return (
+      <div className="min-h-screen p-4 md:p-6">
+        <div className="max-w-lg mx-auto">
+          <h2 className="text-2xl font-extrabold text-navy text-center mb-4">Word Detective! 🔍</h2>
+
+          {/* Color-coded sentence tiles */}
+          <div className="flex flex-wrap gap-2 justify-center mb-6">
+            {grammarBreakdown.map((gw, i) => (
+              <button key={i}
+                onClick={() => {
+                  setActiveTileIndex(activeTileIndex === i ? null : i);
+                  setTappedCount(c => c + 1);
+                  speak(gw.child_explanation, { rate: 0.80, pitch: 1.05 });
+                }}
+                className={`rounded-xl px-4 py-3 border-2 transition-all active:scale-95 flex flex-col items-center min-w-[70px] ${TYPE_SOLID[gw.type] || TYPE_SOLID.article} ${activeTileIndex === i ? 'scale-110 ring-2 ring-navy' : ''}`}
+                style={{ animationDelay: `${i * 300}ms` }}>
+                <span className="text-2xl font-extrabold">{gw.word}</span>
+                <span className="text-[10px] font-bold opacity-80 mt-1">{TYPE_LABELS[gw.type] || gw.type.toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Speech bubble for active tile */}
+          {activeTileIndex !== null && grammarBreakdown[activeTileIndex] && (
+            <div className="bg-white rounded-2xl p-4 shadow-lg border-2 border-navy/20 mb-4 animate-fade-in">
+              <p className="text-lg font-bold text-navy mb-2">{grammarBreakdown[activeTileIndex].child_explanation}</p>
+              <button onClick={() => {
+                speak(grammarBreakdown[activeTileIndex].why_here, { rate: 0.80, pitch: 1.05 });
+              }} className="text-sm text-coral font-bold hover:text-navy">Why here? 🤔</button>
+            </div>
+          )}
+
+          {/* Color legend */}
+          <div className="flex flex-wrap gap-2 justify-center text-[10px] mb-4">
+            <span className="px-2 py-1 rounded bg-blue-500 text-white">Things</span>
+            <span className="px-2 py-1 rounded bg-green-500 text-white">Actions</span>
+            <span className="px-2 py-1 rounded bg-yellow-500 text-navy">Describing</span>
+            <span className="px-2 py-1 rounded bg-gray-400 text-white">Helpers</span>
+          </div>
+
+          {/* Sentence summary */}
+          {sentenceSummary && (
+            <div className="bg-sunshine/10 rounded-xl p-3 text-center mb-4">
+              <p className="text-sm text-navy">{sentenceSummary}</p>
+            </div>
+          )}
+
+          {/* Grammar stamp indicator */}
+          {tappedCount >= 3 && (
+            <p className="text-center text-grass font-bold text-sm mb-2 animate-fade-in">Grammar Detective! 🔍 — stamp earned!</p>
+          )}
+
+          {/* Next button — always visible */}
+          <button onClick={advanceFromWordDetective}
+            className="w-full min-h-[72px] bg-grass text-white font-bold text-xl rounded-2xl active:scale-95 transition-all">
+            Next Sentence →
+          </button>
+
+          <p className="text-center text-xs text-gray-400 mt-2">Tap each word to learn what it does!</p>
         </div>
       </div>
     );

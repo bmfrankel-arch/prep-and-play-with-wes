@@ -73,7 +73,10 @@ CREATE TABLE IF NOT EXISTS stories (
   sentences TEXT[] NOT NULL DEFAULT '{}',
   word_banks_used JSONB,
   completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  parent_rating BOOLEAN
+  parent_rating BOOLEAN,
+  grammar_stamps_earned INTEGER DEFAULT 0,
+  word_expert_badge BOOLEAN DEFAULT FALSE,
+  grammar_breakdown JSONB
 );
 
 -- Weekly Reports
