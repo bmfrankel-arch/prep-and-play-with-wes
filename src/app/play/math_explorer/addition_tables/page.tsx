@@ -1,181 +1,299 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getSkillProgress, saveGameSession, getAnimalCollection, saveAnimalUnlock } from '@/lib/db';
-import { generateAdditionWorksheet, WorksheetProblem } from '@/lib/worksheetGenerator';
 import { speak, speakCelebration } from '@/lib/speech';
-import { playCorrectSound } from '@/lib/audio';
-import { selectAnimal } from '@/lib/animalSelection';
-import { Animal } from '@/data/animals';
-import Confetti from '@/components/Confetti';
-import AnimalUnlockSequence from '@/components/AnimalUnlockSequence';
+import { playCorrectSound, playWrongSound } from '@/lib/audio';
+import { saveGameSession } from '@/lib/db';
+import { calculateXp } from '@/lib/animalLeveling';
+import PostSessionFlow from '@/components/PostSessionFlow';
+
+const TOTAL = 10;
+
+interface Problem {
+  a: number;
+  b: number;
+  answer: number;
+  display: string;
+  tts: string;
+}
+
+function generateProblems(): Problem[] {
+  const problems: Problem[] = [];
+  const used = new Set<string>();
+  while (problems.length < TOTAL) {
+    const a = Math.floor(Math.random() * 9) + 1;
+    const b = Math.floor(Math.random() * 9) + 1;
+    const answer = a + b;
+    if (answer > 18) continue;
+    const key = `${a}+${b}`;
+    if (used.has(key)) continue;
+    used.add(key);
+    problems.push({
+      a,
+      b,
+      answer,
+      display: `${a} + ${b} = ___`,
+      tts: `What is ${a} plus ${b}?`,
+    });
+  }
+  return problems;
+}
+
+const CORRECT_PHRASES = ['Well done Wes!', 'Correct!', 'Brilliant!'];
+let correctIdx = 0;
+function nextCorrectPhrase(): string {
+  const phrase = CORRECT_PHRASES[correctIdx % CORRECT_PHRASES.length];
+  correctIdx++;
+  return phrase;
+}
+
+type Status = 'idle' | 'correct' | 'wrong' | 'reveal';
 
 export default function AdditionTablesPage() {
   const router = useRouter();
-  const [level, setLevel] = useState<DifficultyLevel>(1);
-  const [problems, setProblems] = useState<WorksheetProblem[]>([]);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [results, setResults] = useState<Record<number, boolean | null>>({});
-  const [activeIdx, setActiveIdx] = useState<number | null>(null);
-  const [allDone, setAllDone] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [showAnimal, setShowAnimal] = useState(false);
-  const [unlockedAnimal, setUnlockedAnimal] = useState<Animal | null>(null);
-  const [animalSave, setAnimalSave] = useState<'saved' | 'failed' | null>(null);
+  const [problems, setProblems] = useState<Problem[]>(() => generateProblems());
+  const [idx, setIdx] = useState(0);
+  const [typed, setTyped] = useState('');
+  const [wrongCount, setWrongCount] = useState(0);
+  const [status, setStatus] = useState<Status>('idle');
+  const [shake, setShake] = useState(false);
+  const [score, setScore] = useState(0);
+  const [done, setDone] = useState(false);
+  const [showFlow, setShowFlow] = useState(false);
 
+  const current = problems[idx];
+
+  // Speak the first problem on mount.
   useEffect(() => {
-    getSkillProgress('math_explorer').then(p => {
-      const lvl = p.current_level as DifficultyLevel;
-      setLevel(lvl);
-      const count = lvl === 1 ? 12 : lvl === 2 ? 15 : 18;
-      setProblems(generateAdditionWorksheet(lvl, count));
-      speak("Here's your addition worksheet, Wes! Fill in all the blanks. Tap a box to type your answer!", { rate: 0.85 });
+    const t = setTimeout(() => speak(problems[0].tts, { rate: 0.9 }), 350);
+    return () => clearTimeout(t);
+  }, [problems]);
+
+  const finishSession = useCallback(async (finalScore: number) => {
+    setDone(true);
+    speakCelebration(`You got ${finalScore} out of ${TOTAL}!`);
+    await saveGameSession({
+      skill_area: 'math_explorer',
+      sub_game: 'addition_tables',
+      score: finalScore,
+      total_questions: TOTAL,
+      child_name: 'Wes',
     });
+    setTimeout(() => setShowFlow(true), 1100);
   }, []);
 
-  const handleKeyTap = (digit: string) => {
-    if (activeIdx === null) return;
-    const current = answers[activeIdx] || '';
-    if (digit === '⌫') {
-      setAnswers({ ...answers, [activeIdx]: current.slice(0, -1) });
+  const advance = useCallback((wasCorrect: boolean) => {
+    const newScore = wasCorrect ? score + 1 : score;
+    setScore(newScore);
+    setTyped('');
+    setWrongCount(0);
+    setStatus('idle');
+    if (idx + 1 >= TOTAL) {
+      finishSession(newScore);
     } else {
-      const next = current + digit;
-      if (next.length <= 3) setAnswers({ ...answers, [activeIdx]: next });
+      const nextIdx = idx + 1;
+      setIdx(nextIdx);
+      setTimeout(() => speak(problems[nextIdx].tts, { rate: 0.9 }), 250);
     }
-  };
+  }, [idx, score, problems, finishSession]);
 
-  const submitAnswer = (idx: number) => {
-    const p = problems[idx];
-    const entered = parseInt(answers[idx] || '');
-    if (isNaN(entered)) return;
+  const submit = useCallback(() => {
+    if (status !== 'idle') return;
+    if (typed === '') return;
+    const value = parseInt(typed, 10);
+    if (isNaN(value)) return;
 
-    if (entered === p.answer) {
+    if (value === current.answer) {
       playCorrectSound();
-      setResults({ ...results, [idx]: true });
-      setActiveIdx(null);
-
-      // Check if all done
-      const newResults = { ...results, [idx]: true };
-      const allCorrect = problems.every((_, i) => newResults[i] === true);
-      if (allCorrect) {
-        setTimeout(() => completeWorksheet(), 500);
-      }
+      setStatus('correct');
+      speak(nextCorrectPhrase(), { rate: 0.95, pitch: 1.1 });
+      setTimeout(() => advance(true), 1000);
     } else {
-      setResults({ ...results, [idx]: false });
-      speak("Almost! Try again, Wes!", { rate: 0.85 });
-      setTimeout(() => {
-        setAnswers({ ...answers, [idx]: '' });
-        setResults({ ...results, [idx]: null });
-      }, 1500);
-    }
-  };
-
-  const completeWorksheet = async () => {
-    setAllDone(true);
-    setShowConfetti(true);
-    speakCelebration("You completed the worksheet, Wes! Amazing work!");
-    await saveGameSession({ skill_area: 'math_explorer', sub_game: 'addition_tables', score: problems.length, total_questions: problems.length, child_name: 'Wes' });
-
-    // Animal unlock
-    try {
-      const collection = await getAnimalCollection();
-      const score = level === 3 ? 9 : level === 2 ? 7 : 4;
-      const animal = selectAnimal(score, 10, collection);
-      if (animal) {
-        setUnlockedAnimal(animal);
-        const { saved } = await saveAnimalUnlock({ animal_id: animal.id, rarity: animal.rarity, quiz_score_when_unlocked: level, quiz_type_when_unlocked: 'addition_tables' });
-        setAnimalSave(saved ? 'saved' : 'failed');
+      playWrongSound();
+      const next = wrongCount + 1;
+      setWrongCount(next);
+      setStatus('wrong');
+      setShake(true);
+      setTimeout(() => setShake(false), 350);
+      setTimeout(() => setTyped(''), 380);
+      if (next >= 2) {
+        // Reveal answer briefly, then move on.
+        setStatus('reveal');
+        speak(`The answer is ${current.answer}`, { rate: 0.9 });
+        setTimeout(() => advance(false), 1800);
+      } else {
+        speak('Try again!', { rate: 0.9 });
+        setTimeout(() => setStatus('idle'), 500);
       }
-    } catch { /* continue */ }
-  };
+    }
+  }, [typed, status, current, wrongCount, advance]);
 
-  if (showAnimal && unlockedAnimal) {
-    return <AnimalUnlockSequence animal={unlockedAnimal} onComplete={() => { setShowAnimal(false); }} saveStatus={animalSave} />;
+  const tap = useCallback((key: string) => {
+    if (status === 'correct' || status === 'reveal') return;
+    if (key === '←') {
+      setTyped(t => t.slice(0, -1));
+      return;
+    }
+    if (key === '✓') {
+      submit();
+      return;
+    }
+    setTyped(t => (t.length >= 2 ? t : t + key));
+  }, [status, submit]);
+
+  const xp = useMemo(() => calculateXp('addition_tables', score, TOTAL), [score]);
+
+  if (showFlow) {
+    return (
+      <PostSessionFlow
+        active={showFlow}
+        xpEarned={xp}
+        xpSource="addition_tables"
+        score={score}
+        total={TOTAL}
+        attemptUnlock={true}
+        onComplete={() => setShowFlow(false)}
+      />
+    );
   }
 
-  if (allDone) {
+  if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <Confetti duration={5000} />
         <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
-          <p className="text-6xl mb-4">🌟</p>
-          <h2 className="text-3xl font-extrabold text-navy mb-2">All correct!</h2>
-          <p className="text-lg text-gray-600 mb-6">You completed all {problems.length} problems!</p>
-          {unlockedAnimal && !showAnimal && (
-            <button onClick={() => { speakCelebration("You finished the whole worksheet, Wes! You've earned a new animal!"); setTimeout(() => setShowAnimal(true), 2000); }}
-              className="game-btn bg-gold text-navy px-6 mb-3 animate-pulse w-full">See Your New Animal! 🦁</button>
-          )}
-          <div className="flex gap-3 justify-center">
-            <button onClick={() => { setAllDone(false); setAnswers({}); setResults({}); setShowConfetti(false); setProblems(generateAdditionWorksheet(level, problems.length)); speak("Here's a new worksheet!"); }}
-              className="game-btn bg-grass text-white px-6">Try Another! 🔄</button>
-            <button onClick={() => router.push('/play/math_explorer')} className="game-btn bg-navy text-white px-6">Back to Math</button>
+          <p className="text-6xl mb-3">⭐</p>
+          <h2 className="text-3xl font-extrabold text-navy mb-3">All done, Wes!</h2>
+          <p className="text-2xl text-gray-700 mb-6">You got {score} out of {TOTAL}!</p>
+          <div className="flex gap-3 justify-center flex-wrap">
+            <button
+              onClick={() => {
+                setProblems(generateProblems());
+                setIdx(0);
+                setTyped('');
+                setWrongCount(0);
+                setStatus('idle');
+                setScore(0);
+                setDone(false);
+              }}
+              className="game-btn bg-grass text-white px-6"
+            >
+              Play Again
+            </button>
+            <button
+              onClick={() => router.push('/play/math_explorer')}
+              className="game-btn bg-navy text-white px-6"
+            >
+              Back to Math
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
+  const submitActive = typed.length > 0 && status === 'idle';
+
+  const boxBorder =
+    status === 'correct' ? 'border-grass bg-green-50' :
+    status === 'wrong' ? 'border-red-500 bg-red-50' :
+    status === 'reveal' ? 'border-amber-400 bg-amber-50' :
+    'border-navy bg-white';
+
+  const boxText =
+    status === 'correct' ? <span className="text-grass">{current.answer}</span> :
+    status === 'reveal' ? <span className="text-amber-600">{current.answer}</span> :
+    <span className="text-navy">{typed}</span>;
+
   return (
-    <div className="min-h-screen p-4 pb-48">
-      {showConfetti && <Confetti duration={3000} />}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => router.push('/play/math_explorer')} className="text-navy font-bold">← Back</button>
-        <h1 className="text-xl font-extrabold text-navy">Addition Practice ➕</h1>
-        <span className="text-sm text-gray-400">{LEVEL_NAMES[level]}</span>
-      </div>
-      <p className="text-center text-gray-500 text-sm mb-4">Fill in the blanks, Wes!</p>
-
-      {/* Problem grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-w-lg mx-auto mb-6">
-        {problems.map((p, i) => {
-          const isCorrect = results[i] === true;
-          const isWrong = results[i] === false;
-          const isActive = activeIdx === i;
-          const parts = p.display.split('__');
-
-          return (
-            <button key={i}
-              onClick={() => { if (!isCorrect) { setActiveIdx(i); speak(p.tts, { rate: 0.85 }); } }}
-              className={`rounded-xl p-3 text-center border-2 transition-all min-h-[60px] ${
-                isCorrect ? 'bg-green-50 border-green-400' :
-                isWrong ? 'bg-red-50 border-red-300' :
-                isActive ? 'bg-blue-50 border-navy ring-2 ring-navy' :
-                'bg-white border-gray-200'
-              }`}>
-              <p className="text-xl font-extrabold text-navy">
-                {parts[0]}
-                <span className={`inline-block min-w-[40px] mx-1 border-b-2 ${isCorrect ? 'border-green-500 text-green-600' : 'border-dashed border-navy'} text-2xl font-extrabold`}>
-                  {isCorrect ? p.answer : (answers[i] || '')}
-                </span>
-                {parts[1] || ''}
-              </p>
-              {isCorrect && <span className="text-green-500 text-sm">✓</span>}
-            </button>
-          );
-        })}
+    <div className="min-h-screen flex flex-col bg-white">
+      {/* Top bar */}
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+        <button
+          onClick={() => router.push('/play/math_explorer')}
+          className="text-navy font-bold text-sm"
+        >
+          ← Back
+        </button>
+        <p className="text-xs text-gray-500">Problem {idx + 1} of {TOTAL}</p>
+        <button
+          onClick={() => speak(current.tts, { rate: 0.9 })}
+          aria-label="Read aloud"
+          className="min-w-[44px] min-h-[44px] text-2xl active:scale-110 transition-transform"
+        >
+          🔊
+        </button>
       </div>
 
-      {/* Number keypad — fixed at bottom */}
-      {activeIdx !== null && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t-2 border-navy/20 p-4 shadow-2xl">
-          <div className="max-w-sm mx-auto">
-            <p className="text-center text-sm text-gray-500 mb-2">{problems[activeIdx]?.display.replace('__', '?')}</p>
-            <div className="grid grid-cols-5 gap-2 mb-3">
-              {['1','2','3','4','5','6','7','8','9','0'].map(d => (
-                <button key={d} onClick={() => handleKeyTap(d)}
-                  className="h-14 rounded-xl bg-navy/5 text-navy text-2xl font-bold active:scale-95 active:bg-navy/20">{d}</button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => handleKeyTap('⌫')} className="flex-1 h-12 rounded-xl bg-gray-200 text-gray-600 font-bold active:scale-95">⌫</button>
-              <button onClick={() => submitAnswer(activeIdx)}
-                className="flex-1 h-12 rounded-xl bg-grass text-white font-bold active:scale-95">Done ✓</button>
-            </div>
-          </div>
+      {/* Equation */}
+      <div className="flex-1 flex items-center justify-center px-4 py-6 select-none">
+        <div
+          className={`text-[64px] md:text-[88px] font-extrabold text-navy leading-none flex items-center gap-4 ${shake ? 'animate-shake' : ''}`}
+        >
+          <span>{current.a}</span>
+          <span>+</span>
+          <span>{current.b}</span>
+          <span>=</span>
+          <span
+            className={`inline-flex items-center justify-center rounded-2xl border-[3px] border-dashed ${boxBorder}`}
+            style={{ minWidth: 120, minHeight: 90, padding: '0 12px' }}
+          >
+            {boxText}
+          </span>
         </div>
-      )}
+      </div>
+
+      {/* Number keypad */}
+      <div className="bg-[#F5F5F5] px-3 pt-3 pb-4 border-t border-gray-200">
+        <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto">
+          {['1','2','3','4','5','6','7','8','9'].map(d => (
+            <button
+              key={d}
+              onClick={() => tap(d)}
+              disabled={status === 'correct' || status === 'reveal'}
+              className="bg-white text-navy text-3xl font-extrabold rounded-2xl shadow active:scale-90 active:bg-gray-100 transition-transform disabled:opacity-50"
+              style={{ minHeight: 80 }}
+            >
+              {d}
+            </button>
+          ))}
+          <button
+            onClick={() => tap('←')}
+            disabled={status === 'correct' || status === 'reveal'}
+            className="bg-white text-navy text-3xl font-extrabold rounded-2xl shadow active:scale-90 active:bg-gray-100 transition-transform disabled:opacity-50"
+            style={{ minHeight: 80 }}
+          >
+            ←
+          </button>
+          <button
+            onClick={() => tap('0')}
+            disabled={status === 'correct' || status === 'reveal'}
+            className="bg-white text-navy text-3xl font-extrabold rounded-2xl shadow active:scale-90 active:bg-gray-100 transition-transform disabled:opacity-50"
+            style={{ minHeight: 80 }}
+          >
+            0
+          </button>
+          <button
+            onClick={() => tap('✓')}
+            disabled={!submitActive}
+            className={`text-3xl font-extrabold rounded-2xl shadow transition-transform active:scale-90 ${
+              submitActive ? 'bg-grass text-white' : 'bg-gray-300 text-gray-500'
+            }`}
+            style={{ minHeight: 80 }}
+          >
+            ✓
+          </button>
+        </div>
+      </div>
+
+      <style jsx global>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-10px); }
+          75% { transform: translateX(10px); }
+        }
+        .animate-shake { animation: shake 0.32s ease-in-out; }
+      `}</style>
     </div>
   );
 }
