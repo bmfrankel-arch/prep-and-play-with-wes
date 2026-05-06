@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db';
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound } from '@/lib/audio';
+import { calculateXp } from '@/lib/animalLeveling';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 import SpokenResponse from '@/components/SpokenResponse';
+import PostSessionFlow from '@/components/PostSessionFlow';
 
 interface Scenario {
   scenario: string;
@@ -26,14 +28,16 @@ export default function MeetGreetPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newLevel, setNewLevel] = useState<DifficultyLevel>(2);
+  const [history, setHistory] = useState<string[]>([]);
+  const [showFlow, setShowFlow] = useState(false);
 
-  const fetchScenarios = useCallback(async (lvl: DifficultyLevel) => {
+  const fetchScenarios = useCallback(async (lvl: DifficultyLevel, prevScenarios: string[] = []) => {
     setPhase('loading');
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skillArea: 'confidence_coach', subGame: 'meet_greet', level: lvl, count: 5 }),
+        body: JSON.stringify({ skillArea: 'confidence_coach', subGame: 'meet_greet', level: lvl, count: 5, previousQuestions: prevScenarios }),
       });
       const data = await res.json();
       setScenarios(data.questions || []);
@@ -76,6 +80,9 @@ export default function MeetGreetPage() {
       await updateSkillProgress({ ...(await getSkillProgress('confidence_coach')), consecutive_correct: newCC, consecutive_wrong: 0 });
     }
 
+    // Track this scenario so replays don't reuse it
+    const current = scenarios[currentIndex];
+    if (current) setHistory(h => [...h, current.scenario]);
     // Advance
     if (currentIndex + 1 >= scenarios.length) finishGame();
     else { setCurrentIndex(i => i + 1); }
@@ -84,6 +91,7 @@ export default function MeetGreetPage() {
   const finishGame = async () => {
     await saveGameSession({ skill_area: 'confidence_coach', sub_game: 'meet_greet', score, total_questions: scenarios.length, child_name: 'Wes' });
     setPhase('complete');
+    setTimeout(() => setShowFlow(true), 700);
   };
 
   if (showLevelUp) return <LevelUpSequence skillArea="confidence_coach" newLevel={newLevel} onComplete={() => {
@@ -94,20 +102,35 @@ export default function MeetGreetPage() {
 
   if (phase === 'loading') return <div className="min-h-screen flex items-center justify-center"><div className="text-6xl animate-bounce">🎤</div></div>;
 
-  if (phase === 'complete') return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <Confetti duration={4000} />
-      <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
-        <p className="text-6xl mb-4">🌟</p>
-        <h2 className="text-3xl font-extrabold text-navy mb-2">Great practice, Wes!</h2>
-        <p className="text-xl text-gray-600 mb-6">You practiced {score} great responses!</p>
-        <div className="flex gap-3 justify-center">
-          <button onClick={() => { setCurrentIndex(0); setScore(0); fetchScenarios(level); }} className="game-btn bg-grass text-white px-6">More Practice!</button>
-          <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+  if (phase === 'complete') {
+    const total = scenarios.length || 1;
+    const xpEarned = calculateXp('confidence_coach', score, total);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Confetti duration={4000} />
+        {showFlow && (
+          <PostSessionFlow
+            active={showFlow}
+            xpEarned={xpEarned}
+            xpSource="confidence_coach"
+            score={score}
+            total={total}
+            attemptUnlock={false}
+            onComplete={() => setShowFlow(false)}
+          />
+        )}
+        <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
+          <p className="text-6xl mb-4">🌟</p>
+          <h2 className="text-3xl font-extrabold text-navy mb-2">Great practice, Wes!</h2>
+          <p className="text-xl text-gray-600 mb-6">You practiced {score} great responses!</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => { setScenarios([]); setCurrentIndex(0); setScore(0); setShowFlow(false); fetchScenarios(level, history); }} className="game-btn bg-grass text-white px-6">More Practice!</button>
+            <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   const s = scenarios[currentIndex];
   if (!s) return null;

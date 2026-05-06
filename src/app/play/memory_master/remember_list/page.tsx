@@ -6,8 +6,10 @@ import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
 import { speakSequence, speak, speakQuestion } from '@/lib/speech';
+import { calculateXp } from '@/lib/animalLeveling';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
+import PostSessionFlow from '@/components/PostSessionFlow';
 
 interface MemoryQuestion {
   words_to_remember: string[];
@@ -48,6 +50,7 @@ export default function RememberListPage() {
   const [timerTotal, setTimerTotal] = useState(12);
   const [displayWords, setDisplayWords] = useState<string[]>([]);
   const [fading, setFading] = useState(false);
+  const [showFlow, setShowFlow] = useState(false);
 
   const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
     setPhase('loading');
@@ -182,6 +185,7 @@ export default function RememberListPage() {
   const finishGame = async () => {
     await saveGameSession({ skill_area: 'memory_master', sub_game: 'remember_list', score, total_questions: questions.length, child_name: 'Wes' });
     setPhase('complete');
+    setTimeout(() => setShowFlow(true), 700);
   };
 
   if (showLevelUp) {
@@ -201,20 +205,35 @@ export default function RememberListPage() {
       </div>
     </div>
   );
-  if (phase === 'complete') return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <Confetti duration={4000} />
-      <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
-        <p className="text-6xl mb-4">🌟</p>
-        <h2 className="text-3xl font-extrabold text-navy mb-2">Nice work, Wes!</h2>
-        <p className="text-xl text-gray-600 mb-6">You got {score} out of {questions.length}!</p>
-        <div className="flex gap-3 justify-center">
-          <button onClick={() => { setCurrentIndex(0); setScore(0); fetchQuestions(level); }} className="game-btn bg-grass text-white px-6">Play Again!</button>
-          <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+  if (phase === 'complete') {
+    const total = questions.length || 1;
+    const xpEarned = calculateXp('memory_master', score, total);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Confetti duration={4000} />
+        {showFlow && (
+          <PostSessionFlow
+            active={showFlow}
+            xpEarned={xpEarned}
+            xpSource="memory_master"
+            score={score}
+            total={total}
+            attemptUnlock={false}
+            onComplete={() => setShowFlow(false)}
+          />
+        )}
+        <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
+          <p className="text-6xl mb-4">🌟</p>
+          <h2 className="text-3xl font-extrabold text-navy mb-2">Nice work, Wes!</h2>
+          <p className="text-xl text-gray-600 mb-6">You got {score} out of {questions.length}!</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => { setCurrentIndex(0); setScore(0); setShowFlow(false); fetchQuestions(level); }} className="game-btn bg-grass text-white px-6">Play Again!</button>
+            <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   const q = questions[currentIndex];
   if (!q) return null;

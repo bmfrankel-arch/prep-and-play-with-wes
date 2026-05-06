@@ -8,10 +8,12 @@ import { playCorrectSound } from '@/lib/audio';
 import { speak, speakWord, speakStory, speakCelebration } from '@/lib/speech';
 import { selectAnimal } from '@/lib/animalSelection';
 import { Animal } from '@/data/animals';
+import { calculateXp } from '@/lib/animalLeveling';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
 import AnimalUnlockSequence from '@/components/AnimalUnlockSequence';
 import BadgeDisplay from '@/components/BadgeDisplay';
+import PostSessionFlow from '@/components/PostSessionFlow';
 
 interface WordTile {
   word: string;
@@ -111,6 +113,7 @@ export default function StoryBuilderPage() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [grammarStamps, setGrammarStamps] = useState(0);
   const [sentenceSummary, setSentenceSummary] = useState('');
+  const [showFlow, setShowFlow] = useState(false);
 
   const fetchSession = useCallback(async (lvl: DifficultyLevel) => {
     setLoading(true);
@@ -338,6 +341,7 @@ export default function StoryBuilderPage() {
     setTimeout(() => {
       speakStory(`Here is Wes's story. ${sentences.join('. ')}.`);
     }, 1000);
+    setTimeout(() => setShowFlow(true), 1500);
 
     // Trigger animal unlock after story completion
     try {
@@ -483,9 +487,22 @@ export default function StoryBuilderPage() {
   }
 
   if (storyComplete) {
+    const total = session?.sentences?.length || 3;
+    const xpEarned = calculateXp('story_builder', completedSentences.length, total);
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <Confetti duration={5000} />
+        {showFlow && (
+          <PostSessionFlow
+            active={showFlow}
+            xpEarned={xpEarned}
+            xpSource="story_builder"
+            score={completedSentences.length}
+            total={total}
+            attemptUnlock={false}
+            onComplete={() => setShowFlow(false)}
+          />
+        )}
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-xl">
           <p className="text-6xl mb-4">🌟</p>
           <h2 className="text-3xl font-extrabold text-navy mb-2">Wes wrote a story!</h2>

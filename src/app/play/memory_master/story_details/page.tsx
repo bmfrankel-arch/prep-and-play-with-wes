@@ -6,8 +6,10 @@ import { getSkillProgress, updateSkillProgress, saveGameSession } from '@/lib/db
 import { DifficultyLevel, LEVEL_NAMES, SKILL_CONFIG } from '@/lib/types';
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
 import { speakSequence, speak, speakQuestion, speakChoices } from '@/lib/speech';
+import { calculateXp } from '@/lib/animalLeveling';
 import Confetti from '@/components/Confetti';
 import LevelUpSequence from '@/components/LevelUpSequence';
+import PostSessionFlow from '@/components/PostSessionFlow';
 
 interface StoryQuestion {
   question: string;
@@ -43,6 +45,7 @@ export default function StoryDetailsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [feedbackCorrect, setFeedbackCorrect] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
+  const [showFlow, setShowFlow] = useState(false);
 
   const fetchStories = useCallback(async (lvl: DifficultyLevel) => {
     setPhase('loading');
@@ -212,6 +215,7 @@ export default function StoryDetailsPage() {
   const finishGame = async () => {
     await saveGameSession({ skill_area: 'memory_master', sub_game: 'story_details', score, total_questions: totalAnswered + 1, child_name: 'Wes' });
     setPhase('complete');
+    setTimeout(() => setShowFlow(true), 700);
   };
 
   if (showLevelUp) {
@@ -232,20 +236,35 @@ export default function StoryDetailsPage() {
       </div>
     </div>
   );
-  if (phase === 'complete') return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <Confetti duration={4000} />
-      <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
-        <p className="text-6xl mb-4">🌟</p>
-        <h2 className="text-3xl font-extrabold text-navy mb-2">Nice work, Wes!</h2>
-        <p className="text-xl text-gray-600 mb-6">You got {score} correct!</p>
-        <div className="flex gap-3 justify-center">
-          <button onClick={() => { setStoryIndex(0); setScore(0); setTotalAnswered(0); fetchStories(level); }} className="game-btn bg-grass text-white px-6">Play Again!</button>
-          <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+  if (phase === 'complete') {
+    const total = (totalAnswered || 1);
+    const xpEarned = calculateXp('memory_master', score, total);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Confetti duration={4000} />
+        {showFlow && (
+          <PostSessionFlow
+            active={showFlow}
+            xpEarned={xpEarned}
+            xpSource="memory_master"
+            score={score}
+            total={total}
+            attemptUnlock={false}
+            onComplete={() => setShowFlow(false)}
+          />
+        )}
+        <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
+          <p className="text-6xl mb-4">🌟</p>
+          <h2 className="text-3xl font-extrabold text-navy mb-2">Nice work, Wes!</h2>
+          <p className="text-xl text-gray-600 mb-6">You got {score} correct!</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => { setStoryIndex(0); setScore(0); setTotalAnswered(0); setShowFlow(false); fetchStories(level); }} className="game-btn bg-grass text-white px-6">Play Again!</button>
+            <button onClick={() => router.push('/')} className="game-btn bg-navy text-white px-6">Home</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   const currentStory = stories[storyIndex];
   if (!currentStory) return null;
@@ -315,7 +334,6 @@ export default function StoryDetailsPage() {
                     ? 'game-btn w-full border-3 border-navy bg-blue-50 text-navy scale-105 px-4 py-4 text-xl focus:outline-none relative'
                     : 'game-btn w-full bg-purple-50 text-navy border-2 border-purple-200/50 px-4 py-4 text-xl focus:outline-none'}>
                   {choice}
-                  {selected === choice && <span className="absolute top-1 right-2 text-navy text-sm">✓</span>}
                 </button>
               ))}
             </div>
