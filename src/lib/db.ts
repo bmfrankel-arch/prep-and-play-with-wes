@@ -15,7 +15,20 @@ import {
   BattleRecord,
   BattleStats,
   Tournament,
+  XpTransaction,
 } from './types';
+import {
+  AnimalCollectionLevelState,
+  AnimalLevel,
+  ZERO_BONUSES,
+  xpToNext,
+  defaultLevelState,
+  awardXpToAnimal,
+  LevelUpEvent,
+  XpSource,
+  calculateXp,
+} from './animalLeveling';
+import { ANIMALS } from '@/data/animals';
 
 // ── Local fallback storage for when Supabase is not configured ──
 
@@ -363,7 +376,18 @@ export async function getWeeklyReports(): Promise<WeeklyReport[]> {
 // ── Animal Collection ──
 
 export async function saveAnimalUnlock(unlock: AnimalUnlock): Promise<{ saved: boolean }> {
-  const record = { ...unlock, unlocked_at: new Date().toISOString() };
+  // Initialize XP/leveling fields for any new unlock so battle/leveling code
+  // never sees undefined state.
+  const withDefaults: AnimalUnlock = {
+    ...unlock,
+    current_level: unlock.current_level ?? 1,
+    current_xp: unlock.current_xp ?? 0,
+    xp_to_next_level: unlock.xp_to_next_level ?? 100,
+    level_bonuses: unlock.level_bonuses ?? { strength: 0, speed: 0, defense: 0, powerLevel: 0 },
+    total_xp_earned: unlock.total_xp_earned ?? 0,
+    is_max_level: unlock.is_max_level ?? false,
+  };
+  const record = { ...withDefaults, unlocked_at: new Date().toISOString() };
 
   // Always save locally first as backup
   const col = getLocal<AnimalUnlock[]>('animal_collection', []);
@@ -471,6 +495,173 @@ export function getBattleStats(): BattleStats {
 export function saveBattleStats(stats: BattleStats): void {
   setLocal('battle_stats', stats);
 }
+
+// ── Animal XP / Leveling ──
+
+function ensureLevelDefaults(unlock: AnimalUnlock): AnimalCollectionLevelState {
+  return {
+    animal_id: unlock.animal_id,
+    current_level: ((unlock.current_level ?? 1) as AnimalLevel),
+    current_xp: unlock.current_xp ?? 0,
+    xp_to_next_level: unlock.xp_to_next_level ?? xpToNext((unlock.current_level ?? 1) as AnimalLevel),
+    level_bonuses: unlock.level_bonuses ?? { ...ZERO_BONUSES },
+    total_xp_earned: unlock.total_xp_earned ?? 0,
+    is_max_level: unlock.is_max_level ?? false,
+  };
+}
+
+export function getLevelStateFor(unlock: AnimalUnlock | undefined): AnimalCollectionLevelState | null {
+  if (!unlock) return null;
+  return ensureLevelDefaults(unlock);
+}
+
+export async function getLevelStates(): Promise<Record<string, AnimalCollectionLevelState>> {
+  const collection = await getAnimalCollection();
+  const out: Record<string, AnimalCollectionLevelState> = {};
+  collection.forEach(c => { out[c.animal_id] = ensureLevelDefaults(c); });
+  return out;
+}
+
+async function persistLevelState(state: AnimalCollectionLevelState): Promise<void> {
+  // Local mirror — always update
+  const local = getLocal<AnimalUnlock[]>('animal_collection', []);
+  const idx = local.findIndex(a => a.animal_id === state.animal_id);
+  if (idx >= 0) {
+    local[idx] = {
+      ...local[idx],
+      current_level: state.current_level,
+      current_xp: state.current_xp,
+      xp_to_next_level: state.xp_to_next_level,
+      level_bonuses: state.level_bonuses,
+      total_xp_earned: state.total_xp_earned,
+      is_max_level: state.is_max_level,
+    };
+    setLocal('animal_collection', local);
+  }
+
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { error } = await supabase.from('animal_collection').update({
+      current_level: state.current_level,
+      current_xp: state.current_xp,
+      xp_to_next_level: state.xp_to_next_level,
+      level_bonuses: state.level_bonuses,
+      total_xp_earned: state.total_xp_earned,
+      is_max_level: state.is_max_level,
+    }).eq('animal_id', state.animal_id);
+    if (error) {
+      // Local mirror is authoritative for leveling state; the next successful
+      // session write will reconcile remote.
+      console.error('Persist level state failed:', error.message);
+    }
+  } catch (err) {
+    console.error('Level state persist error:', err);
+  }
+}
+
+export async function recordXpTransaction(tx: XpTransaction): Promise<void> {
+  const record = { ...tx, awarded_at: new Date().toISOString() };
+  const local = getLocal<XpTransaction[]>('xp_transactions', []);
+  local.unshift({ ...record, id: crypto.randomUUID() });
+  setLocal('xp_transactions', local.slice(0, 200));
+
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { error } = await supabase.from('xp_transactions').insert(record);
+    if (error) queueOfflineSync('xp_transactions', record);
+  } catch {
+    queueOfflineSync('xp_transactions', record);
+  }
+}
+
+export async function getXpTransactions(limit: number = 50): Promise<XpTransaction[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<XpTransaction[]>('xp_transactions', []).slice(0, limit);
+  }
+  try {
+    const { data } = await supabase.from('xp_transactions')
+      .select('*')
+      .order('awarded_at', { ascending: false })
+      .limit(limit);
+    return (data || []) as XpTransaction[];
+  } catch {
+    return getLocal<XpTransaction[]>('xp_transactions', []).slice(0, limit);
+  }
+}
+
+// XP bonus pool for when all animals are at max level.
+export function getBonusXp(): number {
+  return getLocal<number>('xp_bonus_pool', 0);
+}
+
+export async function addBonusXp(amount: number): Promise<void> {
+  const next = getBonusXp() + amount;
+  setLocal('xp_bonus_pool', next);
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { data } = await supabase.from('xp_bonus_pool').select('id, total_bonus_xp').limit(1).single();
+    if (data) {
+      await supabase.from('xp_bonus_pool').update({
+        total_bonus_xp: (data.total_bonus_xp || 0) + amount,
+        updated_at: new Date().toISOString(),
+      }).eq('id', data.id);
+    } else {
+      await supabase.from('xp_bonus_pool').insert({ total_bonus_xp: amount });
+    }
+  } catch (err) {
+    console.error('addBonusXp error:', err);
+  }
+}
+
+export interface AwardXpResult {
+  newState: AnimalCollectionLevelState | null;
+  events: LevelUpEvent[];
+  toBonusPool: boolean;
+}
+
+export async function awardXpAndPersist(
+  animalId: string,
+  source: XpSource,
+  xp: number,
+  score: number,
+  total: number,
+): Promise<AwardXpResult> {
+  if (xp <= 0) return { newState: null, events: [], toBonusPool: false };
+
+  // Bonus pool path
+  if (animalId === '__bonus_pool__') {
+    await addBonusXp(xp);
+    await recordXpTransaction({
+      animal_id: '__bonus_pool__',
+      xp_amount: xp,
+      source,
+      session_score: score,
+      session_total: total,
+    });
+    return { newState: null, events: [], toBonusPool: true };
+  }
+
+  const animal = ANIMALS.find(a => a.id === animalId);
+  if (!animal) return { newState: null, events: [], toBonusPool: false };
+
+  const collection = await getAnimalCollection();
+  const existing = collection.find(c => c.animal_id === animalId);
+  const baseState = existing ? ensureLevelDefaults(existing) : defaultLevelState(animalId);
+
+  const { newState, events } = awardXpToAnimal(animal, baseState, xp);
+  await persistLevelState(newState);
+  await recordXpTransaction({
+    animal_id: animalId,
+    xp_amount: xp,
+    source,
+    session_score: score,
+    session_total: total,
+  });
+
+  return { newState, events, toBonusPool: false };
+}
+
+export { calculateXp };
 
 // ── Tournaments ──
 

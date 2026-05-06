@@ -121,6 +121,22 @@ export interface GameQuestion {
     tts: string;
     equation_display?: string;
   };
+  wrong_answer_explanation?: string;
+  tts_explanation?: string;
+}
+
+export type AnswerState = 'default' | 'selected' | 'correct' | 'wrong' | 'faded';
+
+export function getAnswerState(
+  choice: string,
+  selected: string | null | undefined,
+  correctAnswer: string | undefined,
+  feedback: 'correct' | 'wrong' | null | undefined,
+): AnswerState {
+  if (!feedback) return selected === choice ? 'selected' : 'default';
+  if (choice === correctAnswer) return 'correct';
+  if (feedback === 'wrong' && choice === selected) return 'wrong';
+  return 'faded';
 }
 
 export interface Story {
@@ -147,6 +163,23 @@ export interface AnimalUnlock {
   unlocked_at?: string;
   quiz_score_when_unlocked: number;
   quiz_type_when_unlocked: string;
+  // ── Leveling fields (added with XP system) — defaults applied if undefined ──
+  current_level?: number;
+  current_xp?: number;
+  xp_to_next_level?: number;
+  level_bonuses?: { strength: number; speed: number; defense: number; powerLevel: number };
+  total_xp_earned?: number;
+  is_max_level?: boolean;
+}
+
+export interface XpTransaction {
+  id?: string;
+  animal_id: string;
+  xp_amount: number;
+  source: string;
+  session_score?: number | null;
+  session_total?: number | null;
+  awarded_at?: string;
 }
 
 export interface BattleRecord {

@@ -11,6 +11,8 @@ import { generateFallbackWorkShown, WorkShown } from '@/lib/mathExplainer';
 import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
 import PronunciationChallenge from './PronunciationChallenge';
+import PostSessionFlow from './PostSessionFlow';
+import { calculateXp, XpSource } from '@/lib/animalLeveling';
 
 // Check prefetch cache (window-level shared with prefetch.ts)
 function getPrefetchedQuestions(skill: string, sub: string, lvl: number): GameQuestion[] | null {
@@ -36,6 +38,8 @@ interface GameShellProps {
     onAnswer: (answer: string) => void,
     level: DifficultyLevel,
     selectedAnswer?: string | null,
+    feedback?: 'correct' | 'wrong' | null,
+    correctAnswer?: string,
   ) => React.ReactNode;
   isParentGuided?: boolean;
 }
@@ -62,7 +66,6 @@ export default function GameShell({
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newLevel, setNewLevel] = useState<DifficultyLevel>(2);
   const [showPronunciation, setShowPronunciation] = useState(false);
-  const [currentCorrectAnswer, setCurrentCorrectAnswer] = useState('');
   const [gameComplete, setGameComplete] = useState(false);
   const [settings, setSettings] = useState(getParentSettings());
   const [error, setError] = useState<string | null>(null);
@@ -73,18 +76,25 @@ export default function GameShell({
   const [showMathWork, setShowMathWork] = useState(false);
   const [currentWorkShown, setCurrentWorkShown] = useState<WorkShown | null>(null);
   const [workButtonReady, setWorkButtonReady] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [explanationText, setExplanationText] = useState('');
+  const [explanationReady, setExplanationReady] = useState(false);
+  const [questionHistory, setQuestionHistory] = useState<string[]>([]);
+  const [showPostFlow, setShowPostFlow] = useState(false);
 
-  const fetchQuestions = useCallback(async (lvl: DifficultyLevel) => {
+  const fetchQuestions = useCallback(async (lvl: DifficultyLevel, history: string[] = []) => {
     setLoading(true);
     setError(null);
     setIsFallback(false);
 
-    // Check prefetch cache first
-    const cached = getPrefetchedQuestions(skillArea, subGame, lvl);
-    if (cached) {
-      setQuestions(cached);
-      setLoading(false);
-      return;
+    // Check prefetch cache first (skip cache if we have history — we want fresh questions)
+    if (history.length === 0) {
+      const cached = getPrefetchedQuestions(skillArea, subGame, lvl);
+      if (cached) {
+        setQuestions(cached);
+        setLoading(false);
+        return;
+      }
     }
 
     // Try API with timeout and auto-retry
@@ -96,7 +106,7 @@ export default function GameShell({
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ skillArea, subGame, level: lvl, count: totalQuestions }),
+          body: JSON.stringify({ skillArea, subGame, level: lvl, count: totalQuestions, previousQuestions: history }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -160,13 +170,14 @@ export default function GameShell({
     return () => clearTimeout(t);
   }, [loading, skillArea, subGame, level]);
 
-  // Failsafe: clear feedback toast after 2s no matter what
+  // Failsafe: ensure feedback can't get stuck — but NOT while a panel is up,
+  // since red/green highlighting and panel headers depend on `feedback` remaining set.
   useEffect(() => {
-    if (feedback) {
-      const t = setTimeout(() => setFeedback(null), 2000);
+    if (feedback && !showMathWork && !showExplanation) {
+      const t = setTimeout(() => setFeedback(null), 15000);
       return () => clearTimeout(t);
     }
-  }, [feedback]);
+  }, [feedback, showMathWork, showExplanation]);
 
   // Auto-read question aloud (British accent via centralized TTS)
   // Math Explorer: read question only, never read answer choices (child should calculate independently)
@@ -212,7 +223,6 @@ export default function GameShell({
       setScore(s => s + 1);
       setShowConfetti(true);
       setFeedback('correct');
-      setCurrentCorrectAnswer(question.correct_answer);
       setTimeout(() => setShowConfetti(false), 2000);
 
       const newConsCorrect = consecutiveCorrect + 1;
@@ -295,10 +305,15 @@ export default function GameShell({
 
     // Show explanation panel for Math Explorer and Pattern Detective in regular game mode
     const isPatternDetective = skillArea === 'pattern_detective';
+    const isWordWizard = skillArea === 'word_wizard';
+    const isWWYD = skillArea === 'confidence_coach' && subGame === 'what_would_you_do';
     const shouldShowWork = (isMathExplorer && settings.show_math_work !== false) || isPatternDetective;
+    // Word Wizard and Confidence Coach WWYD: explanation panel on WRONG answers only
+    const shouldShowWrongPanel = !isCorrect && (isWordWizard || isWWYD);
+
     if (shouldShowWork) {
+      // Keep red/green visible for a full 2s, then slide explanation panel
       setTimeout(() => {
-        setFeedback(null);
         const q = questions[currentIndex];
         // Use tts_explanation for pattern detective, work_shown for math
         const work = q?.work_shown || {
@@ -313,20 +328,57 @@ export default function GameShell({
         }
         setShowMathWork(true);
         setWorkButtonReady(false);
-        setTimeout(() => speak(work.tts, { rate: 0.80, pitch: 1.05, onEnd: () => setWorkButtonReady(true) }), 500);
+        // Pattern Detective: prepend correct/wrong header to TTS
+        if (isPatternDetective) {
+          const header = isCorrect
+            ? 'Brilliant! And here is why that is right! '
+            : `Not quite — but here is the secret rule! The correct answer was ${q?.correct_answer}. `;
+          setTimeout(() => speak(header + work.tts, { rate: 0.80, pitch: 1.05, onEnd: () => setWorkButtonReady(true) }), 500);
+        } else {
+          setTimeout(() => speak(work.tts, { rate: 0.80, pitch: 1.05, onEnd: () => setWorkButtonReady(true) }), 500);
+        }
         setTimeout(() => setWorkButtonReady(true), 10000);
-      }, 1500);
+      }, 2000);
+    } else if (shouldShowWrongPanel) {
+      const q = questions[currentIndex];
+      const fallback = isWordWizard
+        ? `The correct answer was ${q?.correct_answer}!`
+        : `The best response was "${q?.correct_answer}"!`;
+      const prefix = isWordWizard
+        ? (subGame === 'word_categories'
+            ? `The odd one out was ${q?.correct_answer}! `
+            : subGame === 'riddles'
+              ? `The answer was ${q?.correct_answer}! `
+              : `The best ending was "${q?.correct_answer}"! `)
+        : `A great response would be to "${q?.correct_answer}"! `;
+      const explanation = q?.wrong_answer_explanation ? prefix + q.wrong_answer_explanation : fallback;
+      setTimeout(() => {
+        setExplanationText(explanation);
+        setShowExplanation(true);
+        setExplanationReady(false);
+        setTimeout(() => speak(explanation, { rate: 0.80, pitch: 1.05, onEnd: () => setExplanationReady(true) }), 300);
+        setTimeout(() => setExplanationReady(true), 5000);
+      }, 2000);
     } else {
+      // Correct answer path — existing 1.5s toast then advance
+      // Wrong answer without a panel (e.g. I Don't Know) — also hold 2s so feedback shows
+      const holdMs = isCorrect ? 1500 : 2000;
       setTimeout(() => {
         setFeedback(null);
         advanceQuestion();
-      }, 1500);
+      }, holdMs);
     }
   };
 
   const advanceQuestion = () => {
+    const prev = questions[currentIndex];
+    if (prev) {
+      const key = prev.question || prev.story || prev.scenario || (prev.clues || []).join(' ');
+      if (key) setQuestionHistory(h => [...h, key]);
+    }
     setSelectedChoice(null);
     setLocked(false);
+    setFeedback(null);
     if (currentIndex + 1 >= questions.length) {
       finishGame();
     } else {
@@ -390,6 +442,16 @@ export default function GameShell({
       child_name: 'Wes',
     });
     setGameComplete(true);
+    // Kick off XP training + animal unlock flow shortly after the results card renders.
+    setTimeout(() => setShowPostFlow(true), 600);
+  };
+
+  // Map skill+subgame to XP source key.
+  const xpSourceFor = (s: string, sub: string): XpSource => {
+    if (sub === 'counting_adventures') return 'counting_adventures';
+    if (sub === 'more_or_less') return 'more_or_less';
+    if (sub === 'algebra_puzzles') return 'algebra_puzzles';
+    return s as XpSource;
   };
 
   if (showLevelUp) {
@@ -412,9 +474,22 @@ export default function GameShell({
   }
 
   if (gameComplete) {
+    const xpSrc = xpSourceFor(skillArea, subGame);
+    const xpEarned = calculateXp(xpSrc, score, questions.length || 1);
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <Confetti duration={4000} />
+        {showPostFlow && (
+          <PostSessionFlow
+            active={showPostFlow}
+            xpEarned={xpEarned}
+            xpSource={xpSrc}
+            score={score}
+            total={questions.length || 1}
+            attemptUnlock={false}
+            onComplete={() => setShowPostFlow(false)}
+          />
+        )}
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-xl">
           <p className="text-6xl mb-4">🌟</p>
           <h2 className="text-3xl font-extrabold text-navy mb-2">Nice work, Wes!</h2>
@@ -455,10 +530,21 @@ export default function GameShell({
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => {
+                // Clear ALL question-related state on replay so we don't see the same question
+                const history = [...questionHistory];
+                setQuestions([]);
                 setCurrentIndex(0);
                 setScore(0);
                 setGameComplete(false);
-                fetchQuestions(level);
+                setSelectedChoice(null);
+                setLocked(false);
+                setFeedback(null);
+                setShowMathWork(false);
+                setCurrentWorkShown(null);
+                setShowExplanation(false);
+                setExplanationText('');
+                setShowPostFlow(false);
+                fetchQuestions(level, history);
               }}
               className="game-btn bg-grass text-white px-6"
             >
@@ -535,13 +621,17 @@ export default function GameShell({
         </div>
       </div>
 
-      {/* Star progress */}
+      {/* Star progress — fills immediately on submission (feedback set) not on advance */}
       <div className="flex justify-center gap-2 mb-6">
-        {Array.from({ length: totalQuestions }, (_, i) => (
-          <span key={i} className={`text-2xl ${i < currentIndex + (feedback === 'correct' ? 1 : 0) ? (i < score + (feedback === 'correct' ? 1 : 0) ? 'star-filled' : 'star-empty') : 'star-empty'}`}>
-            {i < currentIndex ? (i < score ? '★' : '☆') : '☆'}
-          </span>
-        ))}
+        {Array.from({ length: totalQuestions }, (_, i) => {
+          const answered = i < currentIndex + (feedback ? 1 : 0);
+          const correct = i < score + (feedback === 'correct' ? 1 : 0);
+          return (
+            <span key={i} className={`text-2xl transition-all ${answered && correct ? 'star-filled' : 'star-empty'}`}>
+              {answered ? (correct ? '★' : '☆') : '☆'}
+            </span>
+          );
+        })}
       </div>
 
       {/* Speaker button */}
@@ -565,7 +655,7 @@ export default function GameShell({
 
       {/* Question — pass handleSelect so tapping selects, not submits */}
       <div className="max-w-2xl mx-auto pb-24">
-        {renderQuestion(question, handleSelect, level, selectedChoice)}
+        {renderQuestion(question, handleSelect, level, selectedChoice, feedback, question.correct_answer)}
       </div>
 
       {/* Submit button — fixed at bottom */}
@@ -586,8 +676,8 @@ export default function GameShell({
         </div>
       )}
 
-      {/* Feedback toast — bottom of screen, 1.5s max */}
-      {feedback && (
+      {/* Feedback toast — hidden once a panel slides up to take over */}
+      {feedback && !showMathWork && !showExplanation && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-fade-in">
           <div className={`text-center px-8 py-5 rounded-3xl shadow-2xl ${
             feedback === 'correct' ? 'bg-grass/95' : 'bg-white/95 border border-gray-200'
@@ -595,24 +685,55 @@ export default function GameShell({
             {feedback === 'correct' ? (
               <p className="text-2xl font-extrabold text-white">🎉 Great job, Wes!</p>
             ) : (
-              <>
-                <p className="text-xl font-bold text-navy">💪 Good try!</p>
-                <p className="text-base text-gray-600">
-                  Answer: <strong className="text-coral">{currentCorrectAnswer || questions[currentIndex]?.correct_answer}</strong>
-                </p>
-              </>
+              <p className="text-xl font-bold text-navy">💪 Good try!</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Math "Show Your Work" panel */}
-      {showMathWork && currentWorkShown && (
+      {/* Wrong-answer explanation panel — Word Wizard + Confidence Coach WWYD */}
+      {showExplanation && (
         <div className="fixed inset-x-0 bottom-0 z-40 animate-slide-up">
           <div className="bg-[#FFF8E7] border-t-2 border-navy rounded-t-3xl p-6 shadow-2xl max-h-[60vh] overflow-y-auto">
+            <p className="text-xl font-extrabold text-amber-600 mb-3 text-center">Not quite, Wes! 🤔</p>
+            <p className="text-[22px] font-bold text-navy leading-relaxed text-center mb-5">{explanationText}</p>
+            <div className="flex gap-3">
+              <button onClick={() => speak(explanationText, { rate: 0.80, pitch: 1.05 })}
+                className="min-w-[52px] min-h-[52px] text-3xl active:scale-125 transition-transform focus:outline-none">
+                🔊
+              </button>
+              <button
+                onClick={() => { stopSpeaking(); setShowExplanation(false); setExplanationText(''); advanceQuestion(); }}
+                disabled={!explanationReady}
+                className={`flex-1 min-h-[72px] rounded-2xl font-bold text-xl transition-all focus:outline-none ${
+                  explanationReady ? 'bg-grass text-white shadow-lg' : 'bg-gray-200 text-gray-400'
+                }`}>
+                Next Question →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Math "Show Your Work" / Pattern rule panel */}
+      {showMathWork && currentWorkShown && (
+        <div className="fixed inset-x-0 bottom-0 z-40 animate-slide-up">
+          <div className="bg-[#FFF8E7] border-t-2 border-navy rounded-t-3xl p-6 shadow-2xl max-h-[70vh] overflow-y-auto">
+            {/* Pattern Detective: correct/wrong header */}
+            {skillArea === 'pattern_detective' && (
+              feedback === 'correct'
+                ? <p className="text-xl font-extrabold text-grass mb-2 text-center">Brilliant! ✓</p>
+                : <p className="text-xl font-extrabold text-amber-600 mb-2 text-center">Not quite, Wes! 🤔</p>
+            )}
             <h3 className="text-lg font-extrabold text-navy mb-4 text-center">
               {isMathExplorer ? "Here's how we work it out! 🧮" : "Here's the rule! 🔍"}
             </h3>
+            {/* Pattern Detective wrong: explicitly state the correct answer */}
+            {skillArea === 'pattern_detective' && selectedChoice && questions[currentIndex] && selectedChoice !== questions[currentIndex].correct_answer && (
+              <p className="text-lg font-bold text-navy bg-white/60 rounded-xl p-3 mb-4 text-center">
+                The correct answer was <span className="text-grass">{questions[currentIndex].correct_answer}</span>!
+              </p>
+            )}
 
             {/* Steps */}
             <div className="space-y-3 mb-4">
@@ -642,7 +763,7 @@ export default function GameShell({
                 🔊
               </button>
               <button
-                onClick={() => { setShowMathWork(false); setCurrentWorkShown(null); advanceQuestion(); }}
+                onClick={() => { stopSpeaking(); setShowMathWork(false); setCurrentWorkShown(null); advanceQuestion(); }}
                 disabled={!workButtonReady}
                 className={`flex-1 min-h-[72px] rounded-2xl font-bold text-xl transition-all focus:outline-none ${
                   workButtonReady ? 'bg-grass text-white shadow-lg' : 'bg-gray-200 text-gray-400'
