@@ -8,7 +8,7 @@ import { ANIMALS, Animal, AnimalRarity, RARITY_COLORS, RARITY_LABELS, RARITY_ORD
 import { speak } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
 
-type SortMode = 'rarity' | 'date' | 'name';
+type SortMode = 'rarity' | 'date' | 'name' | 'level';
 
 const RARITY_BORDER: Record<AnimalRarity, string> = {
   common: 'border-green-500', rare: 'border-blue-500', epic: 'border-purple-500', legendary: 'border-yellow-400',
@@ -35,8 +35,14 @@ export default function AnimalsPage() {
   const unlocked = unlockedIds.size;
   const pct = Math.round((unlocked / total) * 100);
 
-  // Milestone
-  const milestone = unlocked >= 50 ? 'ULTIMATE ANIMAL MASTER! 🏆' : unlocked >= 25 ? 'Adventurer! ⚔️' : unlocked >= 10 ? 'Explorer! 🌿' : '';
+  // Milestone — tiered for the 100-animal collection
+  const milestone =
+    unlocked >= 100 ? 'ULTIMATE ANIMAL MASTER! 🏆🏆' :
+    unlocked >= 75  ? 'Champion! 🏆' :
+    unlocked >= 50  ? 'Halfway There! 🌟' :
+    unlocked >= 25  ? 'Adventurer! ⚔️' :
+    unlocked >= 10  ? 'Explorer! 🌿' :
+    '';
 
   // Sort animals
   const sorted = [...ANIMALS];
@@ -44,6 +50,17 @@ export default function AnimalsPage() {
     sorted.sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
   } else if (sort === 'name') {
     sorted.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sort === 'level') {
+    sorted.sort((a, b) => {
+      const aU = collection.find(c => c.animal_id === a.id);
+      const bU = collection.find(c => c.animal_id === b.id);
+      if (aU && !bU) return -1;
+      if (!aU && bU) return 1;
+      const aLvl = aU?.current_level ?? 0;
+      const bLvl = bU?.current_level ?? 0;
+      if (aLvl !== bLvl) return bLvl - aLvl;
+      return (bU?.current_xp ?? 0) - (aU?.current_xp ?? 0);
+    });
   } else {
     // By date — unlocked first sorted by date desc, then locked
     sorted.sort((a, b) => {
@@ -56,6 +73,12 @@ export default function AnimalsPage() {
     });
   }
 
+  const levelBadgeColor = (level: number): string => {
+    if (level >= 5) return 'bg-yellow-400 text-navy';
+    if (level >= 3) return 'bg-blue-500 text-white';
+    return 'bg-gray-500 text-white';
+  };
+
   const openCard = (animal: Animal) => {
     const entry = collection.find(c => c.animal_id === animal.id);
     setSelected(animal);
@@ -67,7 +90,7 @@ export default function AnimalsPage() {
 
   return (
     <div className="min-h-screen p-4 pb-8">
-      {unlocked >= 50 && <Confetti duration={6000} />}
+      {unlocked >= 100 && <Confetti duration={6000} />}
 
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
@@ -87,7 +110,7 @@ export default function AnimalsPage() {
 
         {/* Sort */}
         <div className="flex gap-2 mb-4 justify-center">
-          {[{ id: 'rarity' as SortMode, label: 'By Rarity' }, { id: 'date' as SortMode, label: 'By Date' }, { id: 'name' as SortMode, label: 'By Name' }].map(s => (
+          {[{ id: 'rarity' as SortMode, label: 'By Rarity' }, { id: 'date' as SortMode, label: 'By Date' }, { id: 'name' as SortMode, label: 'By Name' }, { id: 'level' as SortMode, label: 'By Level' }].map(s => (
             <button key={s.id} onClick={() => setSort(s.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold ${sort === s.id ? 'bg-navy text-white' : 'bg-gray-100 text-navy'}`}>
               {s.label}
@@ -99,18 +122,34 @@ export default function AnimalsPage() {
         <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
           {sorted.map(animal => {
             const isUnlocked = unlockedIds.has(animal.id);
+            const u = collection.find(c => c.animal_id === animal.id);
+            const lvl = u?.current_level ?? 1;
+            const xpCur = u?.current_xp ?? 0;
+            const xpNext = u?.xp_to_next_level ?? 100;
+            const isMax = u?.is_max_level ?? false;
+            const xpPct = isMax ? 100 : Math.min(100, Math.round((xpCur / Math.max(1, xpNext)) * 100));
             return (
               <button key={animal.id} onClick={() => isUnlocked ? openCard(animal) : undefined}
                 disabled={!isUnlocked}
-                className={`rounded-xl border-2 p-2 text-center transition-all ${RARITY_BORDER[animal.rarity]} ${
+                className={`relative rounded-xl border-2 p-2 text-center transition-all ${RARITY_BORDER[animal.rarity]} ${
                   isUnlocked ? 'bg-white shadow-md active:scale-95' : 'bg-gray-800 opacity-60'
                 }`}>
+                {isUnlocked && (
+                  <span className={`absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${levelBadgeColor(lvl)}`}>
+                    Lv.{lvl}{isMax ? ' ⭐' : ''}
+                  </span>
+                )}
                 <span className={`text-4xl block mb-1 ${!isUnlocked ? 'grayscale opacity-30' : ''}`}>
                   {isUnlocked ? animal.emoji : '❓'}
                 </span>
                 <p className={`text-xs font-bold truncate ${isUnlocked ? 'text-navy' : 'text-gray-500'}`}>
                   {isUnlocked ? animal.name : '???'}
                 </p>
+                {isUnlocked && (
+                  <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-yellow-400" style={{ width: `${xpPct}%` }} />
+                  </div>
+                )}
               </button>
             );
           })}
@@ -156,6 +195,28 @@ export default function AnimalsPage() {
                   <div className="h-full rounded-full" style={{ width: `${selected.powerLevel}%`, backgroundColor: RARITY_COLORS[selected.rarity] }} />
                 </div>
               </div>
+              {(() => {
+                const u = collection.find(c => c.animal_id === selected.id);
+                if (!u) return null;
+                const lvl = u.current_level ?? 1;
+                const xpCur = u.current_xp ?? 0;
+                const xpNext = u.xp_to_next_level ?? 100;
+                const isMax = u.is_max_level ?? false;
+                const pct = isMax ? 100 : Math.min(100, Math.round((xpCur / Math.max(1, xpNext)) * 100));
+                return (
+                  <div className="bg-black/30 rounded-lg p-2 mb-2">
+                    <div className="flex items-center justify-between text-[10px] mb-1">
+                      <span className={`font-bold px-1.5 py-0.5 rounded ${levelBadgeColor(lvl)}`}>
+                        Lv.{lvl}{isMax ? ' ⭐ MAX' : ''}
+                      </span>
+                      <span className="text-gray-300">{isMax ? 'CHAMPION ⭐' : `${xpCur} / ${xpNext} XP`}</span>
+                    </div>
+                    <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                      <div className="h-full bg-yellow-400" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
               {selectedDate && <p className="text-[10px] text-gray-500 text-center">Unlocked {selectedDate}</p>}
               <button onClick={() => setSelected(null)}
                 className="mt-2 bg-white/10 text-white font-bold py-2 rounded-xl text-sm active:scale-95">
