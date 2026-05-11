@@ -115,6 +115,107 @@ CREATE TABLE IF NOT EXISTS battles (
   battled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Battle Breakdown educational metadata (added with the Battle Breakdown panel)
+ALTER TABLE battles
+  ADD COLUMN IF NOT EXISTS battle_reaction TEXT, -- 'wow' | 'cool' | null
+  ADD COLUMN IF NOT EXISTS deciding_factor TEXT,
+  ADD COLUMN IF NOT EXISTS modifier_types TEXT[];
+
+-- ── Dad's Workshop / Personal layer (Phase 1) ───────────────────────────
+-- Adds champion names + favourites on the existing animal collection.
+ALTER TABLE animal_collection
+  ADD COLUMN IF NOT EXISTS champion_name TEXT,
+  ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE;
+
+-- Dad's one-off messages shown to Wes on the home screen.
+CREATE TABLE IF NOT EXISTS dad_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  message_text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  seen_by_wes BOOLEAN NOT NULL DEFAULT FALSE,
+  seen_at TIMESTAMPTZ
+);
+
+-- Weekly letters from Dad (warm, longer-form).
+CREATE TABLE IF NOT EXISTS weekly_letters (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  letter_text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read_by_wes BOOLEAN NOT NULL DEFAULT FALSE,
+  read_at TIMESTAMPTZ
+);
+
+-- Active challenge from Dad (one at a time).
+CREATE TABLE IF NOT EXISTS dad_challenges (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  challenge_type TEXT NOT NULL,
+  challenge_description TEXT NOT NULL,
+  target_value INT,
+  current_progress INT NOT NULL DEFAULT 0,
+  baseline_snapshot JSONB,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  celebrated BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+-- Trophy Room — per-trophy achievement state.
+CREATE TABLE IF NOT EXISTS wes_trophies (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  trophy_id TEXT NOT NULL UNIQUE,
+  achieved_at TIMESTAMPTZ,
+  achievement_detail TEXT,
+  is_achieved BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+ALTER TABLE dad_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_letters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dad_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wes_trophies ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Allow all on dad_messages"
+  ON dad_messages FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'Policy exists, skipping.';
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Allow all on weekly_letters"
+  ON weekly_letters FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'Policy exists, skipping.';
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Allow all on dad_challenges"
+  ON dad_challenges FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'Policy exists, skipping.';
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Allow all on wes_trophies"
+  ON wes_trophies FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'Policy exists, skipping.';
+END $$;
+
+-- Seed the first message from Dad (idempotent — only inserts if no rows yet).
+INSERT INTO dad_messages (message_text)
+SELECT 'Hi Wes! I built this whole app just for you. Every game, every animal, every quiz — I made it because I believe in how smart and brave and curious you are. There are 100 animals to collect, battles to win, and so much to learn. I can''t wait to see you grow. Love always, Dad 🦁'
+WHERE NOT EXISTS (SELECT 1 FROM dad_messages);
+
+-- Seed the first weekly letter from Dad (idempotent).
+INSERT INTO weekly_letters (letter_text)
+SELECT 'Wes — I have been thinking about you all week and I am so proud of how hard you are working. Every day you are getting smarter and braver and more incredible. Keep going — I am watching and I am cheering for you every single day. Love always, Dad 🦁'
+WHERE NOT EXISTS (SELECT 1 FROM weekly_letters);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_game_sessions_played_at ON game_sessions(played_at);
 CREATE INDEX IF NOT EXISTS idx_game_sessions_skill_area ON game_sessions(skill_area);
@@ -164,3 +265,56 @@ CREATE POLICY "Allow all for animal_collection" ON animal_collection FOR ALL USI
 
 DROP POLICY IF EXISTS "Allow all for battles" ON battles;
 CREATE POLICY "Allow all for battles" ON battles FOR ALL USING (true) WITH CHECK (true);
+
+-- ── Animal Leveling / XP System ─────────────────────────────────────────
+-- Adds per-animal level + XP tracking on top of existing animal_collection.
+-- All ALTERs are idempotent.
+
+ALTER TABLE animal_collection
+  ADD COLUMN IF NOT EXISTS current_level INT DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS current_xp INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS xp_to_next_level INT DEFAULT 100,
+  ADD COLUMN IF NOT EXISTS level_bonuses JSONB DEFAULT
+    '{"strength": 0, "speed": 0, "defense": 0, "powerLevel": 0}'::jsonb,
+  ADD COLUMN IF NOT EXISTS total_xp_earned INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_max_level BOOLEAN DEFAULT FALSE;
+
+-- XP transaction log (append-only history of XP awards).
+CREATE TABLE IF NOT EXISTS xp_transactions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  animal_id TEXT NOT NULL,
+  xp_amount INT NOT NULL,
+  source TEXT NOT NULL,
+  session_score INT,
+  session_total INT,
+  awarded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_xp_transactions_animal ON xp_transactions(animal_id);
+CREATE INDEX IF NOT EXISTS idx_xp_transactions_awarded_at ON xp_transactions(awarded_at);
+
+-- Single-row XP overflow pool used when every animal is at max level.
+CREATE TABLE IF NOT EXISTS xp_bonus_pool (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  total_bonus_xp INT DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE xp_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE xp_bonus_pool ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Allow all on xp_transactions"
+  ON xp_transactions FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'Policy exists, skipping.';
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Allow all on xp_bonus_pool"
+  ON xp_bonus_pool FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'Policy exists, skipping.';
+END $$;
