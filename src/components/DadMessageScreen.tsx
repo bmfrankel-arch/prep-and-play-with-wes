@@ -60,21 +60,30 @@ export default function DadMessageScreen({
       aria-modal="true"
       style={{ background: 'linear-gradient(180deg, #fef9c3 0%, #fde68a 60%, #fcd34d 100%)' }}
     >
-      {/* Top bar — title + close */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
+      {/* Floating Close button — pinned to top-right, clears iOS status bar */}
+      <button
+        onClick={handleDismiss}
+        aria-label="Close"
+        className="absolute z-10 w-14 h-14 rounded-full bg-amber-900 text-amber-50 text-3xl font-extrabold flex items-center justify-center shadow-2xl active:scale-90 ring-4 ring-amber-50"
+        style={{
+          top: 'max(env(safe-area-inset-top, 0px), 1rem)',
+          right: 'max(env(safe-area-inset-right, 0px), 1rem)',
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Top bar — title only (X is now absolute) */}
+      <div
+        className="flex items-center px-4 pb-2 flex-shrink-0"
+        style={{ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 1rem) + 4.5rem)' }}
+      >
         <div className="flex items-center gap-2">
           <span className="text-3xl">📬</span>
           <h2 className="font-handwriting text-amber-900" style={{ fontWeight: 700, fontSize: '1.75rem' }}>
             {title}
           </h2>
         </div>
-        <button
-          onClick={handleDismiss}
-          aria-label="Close"
-          className="w-12 h-12 rounded-full bg-amber-900 text-amber-50 text-2xl font-bold flex items-center justify-center shadow-lg active:scale-90"
-        >
-          ✕
-        </button>
       </div>
 
       {/* Message body — scrollable */}
@@ -94,8 +103,11 @@ export default function DadMessageScreen({
         </div>
       </div>
 
-      {/* Pinned action bar — always visible */}
-      <div className="flex-shrink-0 px-4 pb-4 pt-2 flex items-center justify-center gap-3 border-t-2 border-amber-300/40 bg-amber-100/40 backdrop-blur-sm">
+      {/* Pinned action bar — always visible, safe-area aware */}
+      <div
+        className="flex-shrink-0 px-4 pt-2 flex items-center justify-center gap-3 border-t-2 border-amber-300/40 bg-amber-100/40 backdrop-blur-sm"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)' }}
+      >
         {ttsActive ? (
           <button
             onClick={handleSkipTts}
