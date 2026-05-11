@@ -1,6 +1,7 @@
 import { Animal } from '@/data/animals';
 import { LeveledStats, AnimalLevel, getLeveledStatsFor } from '@/lib/animalLeveling';
 import { AnimalUnlock } from '@/lib/types';
+import { AppliedModifier, computeModifiersFor } from '@/data/battleModifiers';
 
 export type Terrain = 'ocean' | 'jungle' | 'arctic' | 'desert' | 'grassland';
 
@@ -43,6 +44,9 @@ const TERRAIN_BONUSES: Record<Terrain, string[]> = {
   grassland: [],
 };
 
+export const TERRAIN_BONUS_VALUE = 15;
+export const TIE_ZONE = 5;
+
 export function randomTerrain(): Terrain {
   const idx = Math.floor(Math.random() * TERRAINS.length);
   return TERRAINS[idx].id;
@@ -52,16 +56,18 @@ export function getTerrainInfo(t: Terrain) {
   return TERRAINS.find(x => x.id === t)!;
 }
 
+// ── New balanced scoring formula ──
+// Score = (STR × 4) + (SPD × 3) + (DEF × 2) + (PWR × 0.3) + Terrain + Modifiers + Random(±8)
 function leveledScore(stats: LeveledStats): number {
-  return (stats.strength * 3) + (stats.speed * 2) + (stats.defense * 2) + stats.powerLevel;
+  return (stats.strength * 4) + (stats.speed * 3) + (stats.defense * 2) + (stats.powerLevel * 0.3);
 }
 
 function terrainBonus(animalId: string, terrain: Terrain): number {
-  return TERRAIN_BONUSES[terrain]?.includes(animalId) ? 15 : 0;
+  return TERRAIN_BONUSES[terrain]?.includes(animalId) ? TERRAIN_BONUS_VALUE : 0;
 }
 
 function randomFactor(): number {
-  return Math.floor(Math.random() * 11) - 5; // -5 to +5
+  return Math.floor(Math.random() * 17) - 8; // -8 to +8
 }
 
 export interface BattleResult {
@@ -75,6 +81,9 @@ export interface BattleResult {
   opponentTerrainBonus: number;
   wesLevel: AnimalLevel;
   opponentLevel: AnimalLevel;
+  wesModifiers: AppliedModifier[];
+  opponentModifiers: AppliedModifier[];
+  scoreDifference: number;
 }
 
 export function calculateBattle(
@@ -108,11 +117,27 @@ export function calculateBattle(
   const wesTerrainBonus = terrainBonus(wesAnimal.id, terrain);
   const opponentTerrainBonus = terrainBonus(opponent.id, terrain);
 
-  const wesScore = leveledScore(wesStats) + wesTerrainBonus + wesRandom;
-  const opponentScore = leveledScore(opponentStats) + opponentTerrainBonus + opponentRandom;
+  // Matchup modifiers (venom / size / ambush)
+  const wesMods = computeModifiersFor(
+    wesAnimal.id, wesAnimal.name,
+    opponent.id, opponent.name,
+    opponentStats.speed,
+  );
+  const opponentMods = computeModifiersFor(
+    opponent.id, opponent.name,
+    wesAnimal.id, wesAnimal.name,
+    wesStats.speed,
+  );
+
+  const wesScore = Math.round(
+    leveledScore(wesStats) + wesTerrainBonus + wesMods.bonus + wesRandom
+  );
+  const opponentScore = Math.round(
+    leveledScore(opponentStats) + opponentTerrainBonus + opponentMods.bonus + opponentRandom
+  );
 
   const diff = Math.abs(wesScore - opponentScore);
-  const isTie = diff <= 3;
+  const isTie = diff <= TIE_ZONE;
   const winnerId = isTie ? null : (wesScore > opponentScore ? wesAnimal.id : opponent.id);
 
   return {
@@ -126,5 +151,8 @@ export function calculateBattle(
     opponentTerrainBonus,
     wesLevel: wesStats.level,
     opponentLevel: opponentStats.level,
+    wesModifiers: wesMods.applied,
+    opponentModifiers: opponentMods.applied,
+    scoreDifference: diff,
   };
 }
