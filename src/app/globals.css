@@ -2,7 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Press+Start+2P&family=Caveat:wght@500;700&family=Patrick+Hand&display=swap');
+
+.font-handwriting {
+  font-family: 'Caveat', 'Patrick Hand', cursive;
+}
 
 :root {
   --background: #f0f4ff;

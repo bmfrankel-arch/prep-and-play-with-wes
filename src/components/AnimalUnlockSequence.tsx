@@ -88,7 +88,7 @@ export default function AnimalUnlockSequence({ animal, onComplete, saveStatus }:
         <div className="absolute top-16 text-center animate-fade-in z-10">
           <h1 className="font-retro text-lg md:text-2xl leading-relaxed"
             style={{ color: '#FFD700', textShadow: '0 0 20px rgba(255,215,0,0.6)' }}>
-            NEW ANIMAL UNLOCKED!
+            WES UNLOCKED A NEW ANIMAL! 🦁
           </h1>
         </div>
       )}

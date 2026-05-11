@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Animal, AnimalRarity, RARITY_COLORS } from '@/data/animals';
 import { LevelUpEvent } from '@/lib/animalLeveling';
 import { speak, speakCelebration } from '@/lib/speech';
+import ChampionNamingScreen from './ChampionNamingScreen';
 
 interface Props {
   animal: Animal;
@@ -26,6 +27,7 @@ const STAT_LABEL: Record<string, string> = {
 
 export default function AnimalLevelUpSequence({ animal, events, onComplete }: Props) {
   const [step, setStep] = useState(0);
+  const [showNaming, setShowNaming] = useState(false);
 
   useEffect(() => {
     if (events.length === 0) {
@@ -43,6 +45,9 @@ export default function AnimalLevelUpSequence({ animal, events, onComplete }: Pr
     const advance = setTimeout(() => {
       if (step + 1 < events.length) {
         setStep(s => s + 1);
+      } else if (isMax) {
+        // Reached level 5 — show the champion-naming prompt before completing.
+        setShowNaming(true);
       } else {
         onComplete();
       }
@@ -50,6 +55,15 @@ export default function AnimalLevelUpSequence({ animal, events, onComplete }: Pr
     return () => clearTimeout(advance);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
+
+  if (showNaming) {
+    return (
+      <ChampionNamingScreen
+        animal={animal}
+        onDone={() => onComplete()}
+      />
+    );
+  }
 
   if (events.length === 0) return null;
   const event = events[step];
