@@ -72,7 +72,11 @@ export default function AdditionTablesPage() {
 
   const finishSession = useCallback(async (finalScore: number) => {
     setDone(true);
-    speakCelebration(`You got ${finalScore} out of ${TOTAL}!`);
+    if (finalScore === TOTAL) {
+      speakCelebration(`${finalScore} OUT OF ${TOTAL}, WES! Dad is going to be SO proud when he hears about this!`);
+    } else {
+      speakCelebration(`Brilliant work, Wes! You got ${finalScore} out of ${TOTAL}. Dad built this just so you could have moments like this.`);
+    }
     await saveGameSession({
       skill_area: 'math_explorer',
       sub_game: 'addition_tables',

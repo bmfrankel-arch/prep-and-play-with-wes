@@ -22,7 +22,7 @@ export default function StoriesPage() {
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => router.push('/')} className="text-navy font-bold">← Home</button>
-          <h1 className="text-2xl font-extrabold text-navy">My Stories 📚</h1>
+          <h1 className="text-2xl font-extrabold text-navy">Wes&apos;s Stories 📚</h1>
           <div />
         </div>
 

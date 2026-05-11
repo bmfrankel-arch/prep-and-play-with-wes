@@ -32,7 +32,7 @@ export default function BattleRecordPage() {
       <div className="max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => router.push('/battle')} className="text-gray-400 font-bold text-sm">← Arena</button>
-          <h1 className="font-retro text-sm text-yellow-400">BATTLE RECORD</h1>
+          <h1 className="font-retro text-sm text-yellow-400">WES&apos;S BATTLE HISTORY</h1>
           <button onClick={() => router.push('/')} className="text-gray-400 font-bold text-sm">Home</button>
         </div>
 

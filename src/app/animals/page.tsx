@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAnimalCollection } from '@/lib/db';
+import { getAnimalCollection, setAnimalFavorite } from '@/lib/db';
 import { AnimalUnlock } from '@/lib/types';
 import { ANIMALS, Animal, AnimalRarity, RARITY_COLORS, RARITY_LABELS, RARITY_ORDER } from '@/data/animals';
 import { speak } from '@/lib/speech';
 import Confetti from '@/components/Confetti';
+import { displayName } from '@/lib/champion';
 
 type SortMode = 'rarity' | 'date' | 'name' | 'level';
 
@@ -95,7 +96,7 @@ export default function AnimalsPage() {
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => router.push('/')} className="text-navy font-bold">← Home</button>
-          <h1 className="text-xl font-extrabold text-navy">Wes&apos;s Animals 🦁</h1>
+          <h1 className="text-xl font-extrabold text-navy">Wes&apos;s Animals — His Forever 🦁</h1>
           <div />
         </div>
 
@@ -118,6 +119,42 @@ export default function AnimalsPage() {
           ))}
         </div>
 
+        {/* Wes's Favorites row */}
+        {(() => {
+          const favs = collection.filter(c => c.is_favorite);
+          if (favs.length === 0) {
+            return (
+              <div className="bg-pink-50 border-2 border-pink-200 rounded-2xl p-3 mb-4 text-center text-pink-700 text-xs font-bold">
+                Tap the ❤️ on any animal to save your favorites here!
+              </div>
+            );
+          }
+          return (
+            <div className="mb-4">
+              <p className="font-bold text-pink-700 text-sm mb-2">Wes&apos;s Favorites ❤️</p>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {favs.map(u => {
+                  const a = ANIMALS.find(x => x.id === u.animal_id);
+                  if (!a) return null;
+                  const d = displayName(a.name, u);
+                  return (
+                    <button
+                      key={u.animal_id}
+                      onClick={() => openCard(a)}
+                      className={`flex-shrink-0 rounded-xl border-2 px-3 py-2 bg-white shadow-sm active:scale-95 ${RARITY_BORDER[a.rarity]}`}
+                    >
+                      <div className="text-2xl text-center">{a.emoji}</div>
+                      <div className={`text-[10px] font-bold mt-0.5 max-w-[70px] truncate ${d.isChampion ? 'text-yellow-600' : 'text-navy'}`}>
+                        {d.isChampion ? `👑 ${d.text}` : d.text}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Grid */}
         <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
           {sorted.map(animal => {
@@ -128,29 +165,49 @@ export default function AnimalsPage() {
             const xpNext = u?.xp_to_next_level ?? 100;
             const isMax = u?.is_max_level ?? false;
             const xpPct = isMax ? 100 : Math.min(100, Math.round((xpCur / Math.max(1, xpNext)) * 100));
+            const d = isUnlocked ? displayName(animal.name, u) : { text: animal.name, isChampion: false };
+            const toggleFav = async (e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (!u) return;
+              const next = !(u.is_favorite ?? false);
+              await setAnimalFavorite(animal.id, next);
+              // Optimistic local update
+              setCollection(prev => prev.map(c => c.animal_id === animal.id ? { ...c, is_favorite: next } : c));
+            };
             return (
-              <button key={animal.id} onClick={() => isUnlocked ? openCard(animal) : undefined}
-                disabled={!isUnlocked}
-                className={`relative rounded-xl border-2 p-2 text-center transition-all ${RARITY_BORDER[animal.rarity]} ${
-                  isUnlocked ? 'bg-white shadow-md active:scale-95' : 'bg-gray-800 opacity-60'
-                }`}>
-                {isUnlocked && (
-                  <span className={`absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${levelBadgeColor(lvl)}`}>
-                    Lv.{lvl}{isMax ? ' ⭐' : ''}
+              <div key={animal.id} className="relative">
+                <button onClick={() => isUnlocked ? openCard(animal) : undefined}
+                  disabled={!isUnlocked}
+                  className={`relative w-full rounded-xl border-2 p-2 text-center transition-all ${RARITY_BORDER[animal.rarity]} ${
+                    isUnlocked ? 'bg-white shadow-md active:scale-95' : 'bg-gray-800 opacity-60'
+                  }`}>
+                  {isUnlocked && (
+                    <span className={`absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${levelBadgeColor(lvl)}`}>
+                      Lv.{lvl}{isMax ? ' ⭐' : ''}
+                    </span>
+                  )}
+                  <span className={`text-4xl block mb-1 ${!isUnlocked ? 'grayscale opacity-30' : ''}`}>
+                    {isUnlocked ? animal.emoji : '❓'}
                   </span>
-                )}
-                <span className={`text-4xl block mb-1 ${!isUnlocked ? 'grayscale opacity-30' : ''}`}>
-                  {isUnlocked ? animal.emoji : '❓'}
-                </span>
-                <p className={`text-xs font-bold truncate ${isUnlocked ? 'text-navy' : 'text-gray-500'}`}>
-                  {isUnlocked ? animal.name : '???'}
-                </p>
+                  <p className={`text-xs font-bold truncate ${isUnlocked ? (d.isChampion ? 'text-yellow-600' : 'text-navy') : 'text-gray-500'}`}>
+                    {isUnlocked ? (d.isChampion ? `👑 ${d.text}` : d.text) : '???'}
+                  </p>
+                  {isUnlocked && (
+                    <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-yellow-400" style={{ width: `${xpPct}%` }} />
+                    </div>
+                  )}
+                </button>
                 {isUnlocked && (
-                  <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-yellow-400" style={{ width: `${xpPct}%` }} />
-                  </div>
+                  <button
+                    onClick={toggleFav}
+                    aria-label={u?.is_favorite ? 'Remove favourite' : 'Add favourite'}
+                    className="absolute top-1 right-1 text-lg active:scale-90 z-10"
+                  >
+                    {u?.is_favorite ? '❤️' : '🤍'}
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -166,13 +223,21 @@ export default function AnimalsPage() {
               <div className="bg-gradient-to-r from-red-900 to-red-700 rounded-lg px-3 py-1.5 mb-2">
                 <p className="font-retro text-[8px] text-white text-center tracking-wider">WHO WOULD WIN?</p>
               </div>
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-lg font-extrabold" style={{ color: RARITY_COLORS[selected.rarity] }}>{selected.name}</h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: RARITY_COLORS[selected.rarity] + '33', color: RARITY_COLORS[selected.rarity] }}>
-                  {RARITY_LABELS[selected.rarity]}
-                </span>
-              </div>
+              {(() => {
+                const u = collection.find(c => c.animal_id === selected.id);
+                const d = displayName(selected.name, u);
+                return (
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="text-lg font-extrabold" style={{ color: d.isChampion ? '#EAB308' : RARITY_COLORS[selected.rarity] }}>
+                      {d.isChampion ? `👑 ${d.text}` : d.text}
+                    </h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: RARITY_COLORS[selected.rarity] + '33', color: RARITY_COLORS[selected.rarity] }}>
+                      {RARITY_LABELS[selected.rarity]}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="flex items-center justify-center bg-black/30 rounded-xl py-6 my-1">
                 <span className="text-8xl">{selected.emoji}</span>
               </div>

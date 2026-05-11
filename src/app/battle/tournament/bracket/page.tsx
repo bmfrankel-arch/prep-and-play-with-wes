@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ANIMALS, AnimalRarity, RARITY_COLORS } from '@/data/animals';
-import { getCurrentTournament, saveTournament, saveBattle, getBattleStats, saveBattleStats } from '@/lib/db';
-import { Tournament } from '@/lib/types';
+import { ANIMALS, AnimalRarity, RARITY_COLORS, Animal } from '@/data/animals';
+import { getCurrentTournament, saveTournament, saveBattle, getBattleStats, saveBattleStats, getAnimalCollection, updateBattleMeta } from '@/lib/db';
+import { AnimalUnlock, Tournament } from '@/lib/types';
 import { speak, speakCelebration } from '@/lib/speech';
 import { calculateBattle, getTerrainInfo, Terrain } from '@/lib/battleEngine';
+import { AppliedModifier } from '@/data/battleModifiers';
 import Confetti from '@/components/Confetti';
+import BattleBreakdown, { BattleBreakdownData } from '@/components/BattleBreakdown';
 
 const RB: Record<AnimalRarity, string> = { common: 'border-green-500', rare: 'border-blue-500', epic: 'border-purple-500', legendary: 'border-yellow-400' };
 const ROUND_NAMES = ['', 'QUARTER FINALS', 'SEMI FINALS', 'THE FINAL'];
@@ -22,13 +24,23 @@ export default function TournamentBracketPage() {
   const [_, setPrediction] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [collection, setCollection] = useState<AnimalUnlock[]>([]);
+  const [breakdown, setBreakdown] = useState<BattleBreakdownData | null>(null);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [breakdownContext, setBreakdownContext] = useState<{ winner: Animal; loser: Animal; winnerLevel: number } | null>(null);
+  const savedBattleIdRef = useRef<string | null>(null);
+  const advanceCallbackRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const t = getCurrentTournament();
     if (!t || t.completed_at) { router.push('/battle/tournament/setup'); return; }
     setTournament(t);
+    getAnimalCollection().then(setCollection);
     setLoading(false);
   }, [router]);
+
+  const unlockOf = (id: string): AnimalUnlock | undefined => collection.find(c => c.animal_id === id);
 
   const getAnimal = (id: string) => ANIMALS.find(a => a.id === id);
   // const getMatch = (round: number, idx: number) => tournament?.bracket_state.find(m => m.round === round && m.match_index === idx);
@@ -50,7 +62,7 @@ export default function TournamentBracketPage() {
     setPrediction(pred);
     setPhase('battle');
 
-    const result = calculateBattle(animal1, animal2, currentMatchData.terrain as Terrain);
+    const result = calculateBattle(animal1, animal2, currentMatchData.terrain as Terrain, unlockOf(animal1.id), unlockOf(animal2.id));
     const winnerId = result.isTie ? (result.wesScore >= result.opponentScore ? animal1.id : animal2.id) : result.winnerId!;
     const predictedCorrectly = pred === winnerId;
 
@@ -87,17 +99,21 @@ export default function TournamentBracketPage() {
     else stats.current_streak = 0;
     saveBattleStats(stats);
 
-    // Save battle record
+    // Save battle record (deciding factor patched after API call)
+    const winnerModifiers = winnerId === animal1.id ? result.wesModifiers : result.opponentModifiers;
+    const modifierTypes = winnerModifiers.map(m => m.type);
     saveBattle({
       wes_animal_id: animal1.id, opponent_animal_id: animal2.id,
       terrain: currentMatchData.terrain, wes_animal_score: result.wesScore,
       opponent_score: result.opponentScore, winner_animal_id: winnerId,
       is_tie: false, wes_prediction: pred, wes_predicted_correctly: predictedCorrectly,
       battle_explanation: '', wes_agreed_with_result: null,
-    });
+      modifier_types: modifierTypes.length > 0 ? modifierTypes : null,
+    }).then(id => { savedBattleIdRef.current = id; });
 
     setTimeout(() => {
       const winner = getAnimal(winnerId);
+      const loser = getAnimal(winnerId === animal1.id ? animal2.id : animal1.id);
       if (predictedCorrectly) {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
@@ -120,12 +136,79 @@ export default function TournamentBracketPage() {
       setTournament(updated);
       saveTournament(updated);
 
-      if (isChampion) {
-        setTimeout(() => setPhase('champion'), 2000);
+      // Defer phase advance until breakdown dismissed
+      const advance = () => {
+        if (isChampion) setPhase('champion');
+        else { setPhase('bracket'); setPrediction(null); }
+      };
+      advanceCallbackRef.current = advance;
+
+      if (winner && loser) {
+        const winnerLevel = winnerId === animal1.id ? result.wesLevel : result.opponentLevel;
+        setBreakdownContext({ winner, loser, winnerLevel });
+        fetchTournamentBreakdown(winner, loser, getTerrainInfo(currentMatchData.terrain as Terrain).name, result.scoreDifference, winnerModifiers);
       } else {
-        setTimeout(() => { setPhase('bracket'); setPrediction(null); }, 2000);
+        // Defensive fallback — no breakdown, just advance.
+        setTimeout(advance, 2000);
       }
     }, 3000);
+  };
+
+  const fetchTournamentBreakdown = async (
+    winner: Animal,
+    loser: Animal,
+    terrainName: string,
+    scoreDiff: number,
+    modifiers: AppliedModifier[],
+  ) => {
+    setBreakdownLoading(true);
+    setBreakdownOpen(true);
+    try {
+      const res = await fetch('/api/battle-explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          winner_name: winner.name,
+          winner_stats: { strength: winner.strength, speed: winner.speed, defense: winner.defense, powerLevel: winner.powerLevel, rarity: winner.rarity, superpower: winner.superpower, funFact: winner.funFact },
+          loser_name: loser.name,
+          loser_stats: { strength: loser.strength, speed: loser.speed, defense: loser.defense, powerLevel: loser.powerLevel, rarity: loser.rarity, superpower: loser.superpower, funFact: loser.funFact },
+          terrain: terrainName,
+          score_difference: scoreDiff,
+          modifiers_applied: modifiers,
+          context: 'tournament',
+          isTie: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.breakdown) {
+        setBreakdown(data.breakdown as BattleBreakdownData);
+        const id = savedBattleIdRef.current;
+        if (id) {
+          updateBattleMeta(id, {
+            deciding_factor: (data.breakdown as BattleBreakdownData).deciding_factor,
+            battle_explanation: data.explanation || '',
+          });
+        }
+      }
+    } catch {
+      // No breakdown shown — auto-advance instead.
+      setBreakdownOpen(false);
+      const cb = advanceCallbackRef.current;
+      if (cb) setTimeout(cb, 1000);
+    } finally {
+      setBreakdownLoading(false);
+    }
+  };
+
+  const handleBreakdownReact = (reaction: 'wow' | 'cool') => {
+    setBreakdownOpen(false);
+    const id = savedBattleIdRef.current;
+    if (id) updateBattleMeta(id, { battle_reaction: reaction });
+    const cb = advanceCallbackRef.current;
+    if (cb) {
+      advanceCallbackRef.current = null;
+      setTimeout(cb, 400);
+    }
   };
 
   if (loading || !tournament) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-6xl animate-bounce">🏆</div></div>;
@@ -151,10 +234,24 @@ export default function TournamentBracketPage() {
     );
   }
 
+  const breakdownOverlay = breakdownContext ? (
+    <BattleBreakdown
+      open={breakdownOpen}
+      winner={breakdownContext.winner}
+      loser={breakdownContext.loser}
+      winnerLevel={breakdownContext.winnerLevel}
+      context="tournament"
+      data={breakdown}
+      loading={breakdownLoading}
+      onReact={handleBreakdownReact}
+    />
+  ) : null;
+
   // Matchup / Predict / Battle phases
   if ((phase === 'matchup' || phase === 'predict' || phase === 'battle' || phase === 'result') && animal1 && animal2) {
     return (
       <div className="min-h-screen bg-gray-950 text-white p-4">
+        {breakdownOverlay}
         {showConfetti && <Confetti duration={3000} />}
         <p className="text-center font-retro text-xs text-yellow-400 mb-4">{ROUND_NAMES[currentMatchData?.round || 1]}</p>
 
@@ -188,6 +285,7 @@ export default function TournamentBracketPage() {
   // Bracket view
   return (
     <div className="min-h-screen bg-gray-950 text-white p-4 pb-8">
+      {breakdownOverlay}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => router.push('/battle')} className="text-gray-400 font-bold text-sm">← Arena</button>
         <h1 className="font-retro text-xs text-yellow-400">TOURNAMENT 🏆</h1>

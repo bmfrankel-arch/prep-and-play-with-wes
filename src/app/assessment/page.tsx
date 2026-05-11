@@ -3,11 +3,10 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SkillArea, AssessmentQuestion, getPerformanceBand, getPerformanceStars, SKILL_CONFIG, DifficultyLevel } from '@/lib/types';
-import { saveAssessment, getAllSkillProgress, getParentSettings, saveAnimalUnlock, getAnimalCollection } from '@/lib/db';
+import { saveAssessment, getAllSkillProgress, getParentSettings } from '@/lib/db';
 import { speakQuestion, speakChoices, speakCelebration, shouldAutoRead } from '@/lib/speech';
-import { selectAnimal } from '@/lib/animalSelection';
-import { Animal } from '@/data/animals';
-import AnimalUnlockSequence from '@/components/AnimalUnlockSequence';
+import { calculateXp, XpSource } from '@/lib/animalLeveling';
+import PostSessionFlow from '@/components/PostSessionFlow';
 
 const IMAGE_PHRASES = /\b(picture|image|diagram|shown below|count the objects|look at the|in the drawing|in the figure)\b/i;
 
@@ -23,16 +22,15 @@ function AssessmentContent() {
   const levelParam = parseInt(params.get('level') || '1') as DifficultyLevel;
   const isWeekly = params.get('type') === 'weekly';
 
-  const [phase, setPhase] = useState<'pin' | 'loading' | 'question' | 'animal_unlock' | 'results'>('loading');
-  const [unlockedAnimal, setUnlockedAnimal] = useState<Animal | null>(null);
+  const [phase, setPhase] = useState<'pin' | 'loading' | 'question' | 'post_flow' | 'results'>('loading');
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AssessmentQuestion[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [animalSaveStatus, setAnimalSaveStatus] = useState<'saved' | 'failed' | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [finalScore, setFinalScore] = useState({ correct: 0, total: 0 });
 
   const settings = getParentSettings();
 
@@ -76,7 +74,20 @@ function AssessmentContent() {
   useEffect(() => {
     if (phase === 'results' && answers.length > 0) {
       const sc = answers.filter(a => a.is_correct).length;
-      speakCelebration(`Well done, Wes! You got ${sc} out of ${answers.length} correct!`);
+      const total = answers.length;
+      if (sc === total) {
+        speakCelebration(`${sc} OUT OF ${total}, WES! Dad is going to be SO proud when he hears about this!`);
+      } else {
+        // Rotate friendly completion messages
+        const lines = [
+          `Brilliant work, Wes! Dad built this just so you could have moments like this. ${sc} out of ${total} correct!`,
+          `You're getting so smart, Wes! ${sc} out of ${total}. This is exactly why Dad made this app for you.`,
+          `Incredible, Wes! ${sc} out of ${total} correct. Dad would be so proud right now.`,
+          `That's MY Wes! ${sc} out of ${total}. Absolutely brilliant work today.`,
+        ];
+        const pick = lines[Math.floor(Math.random() * lines.length)];
+        speakCelebration(pick);
+      }
     }
   }, [phase, answers]);
 
@@ -146,25 +157,8 @@ function AssessmentContent() {
       current_level_at_time: levelParam,
     });
 
-    // Animal unlock — select based on score
-    try {
-      const collection = await getAnimalCollection();
-      const animal = selectAnimal(score, total, collection);
-      if (animal) {
-        setUnlockedAnimal(animal);
-        const { saved } = await saveAnimalUnlock({
-          animal_id: animal.id,
-          rarity: animal.rarity,
-          quiz_score_when_unlocked: score,
-          quiz_type_when_unlocked: isWeekly ? 'weekly' : 'standard',
-        });
-        setAnimalSaveStatus(saved ? 'saved' : 'failed');
-        setPhase('animal_unlock');
-        return;
-      }
-    } catch { /* continue to results */ }
-
-    setPhase('results');
+    setFinalScore({ correct: score, total });
+    setPhase('post_flow');
   };
 
   // PIN entry
@@ -208,13 +202,19 @@ function AssessmentContent() {
     );
   }
 
-  // Animal unlock sequence
-  if (phase === 'animal_unlock' && unlockedAnimal) {
+  // XP training + animal unlock sequence
+  if (phase === 'post_flow') {
+    const src: XpSource = isWeekly ? 'weekly_quiz' : 'standard_quiz';
+    const xp = calculateXp(src, finalScore.correct, finalScore.total || 1);
     return (
-      <AnimalUnlockSequence
-        animal={unlockedAnimal}
+      <PostSessionFlow
+        active={true}
+        xpEarned={xp}
+        xpSource={src}
+        score={finalScore.correct}
+        total={finalScore.total || 1}
+        attemptUnlock={true}
         onComplete={() => setPhase('results')}
-        saveStatus={animalSaveStatus}
       />
     );
   }

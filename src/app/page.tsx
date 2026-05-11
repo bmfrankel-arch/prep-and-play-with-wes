@@ -1,12 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SkillArea, SkillProgress, DifficultyLevel, LEVEL_NAMES } from '@/lib/types';
-import { getAllSkillProgress, getStreak, getParentSettings, getAnimalCollection, syncOfflineQueue } from '@/lib/db';
+import { SkillArea, SkillProgress, DifficultyLevel, LEVEL_NAMES, AnimalUnlock, DadMessage, WeeklyLetter, DadChallenge } from '@/lib/types';
+import {
+  getAllSkillProgress, getStreak, getParentSettings, getAnimalCollection, syncOfflineQueue,
+  getLatestDadMessage, markDadMessageSeen,
+  getLatestWeeklyLetter, markWeeklyLetterRead,
+  getActiveChallenge, updateChallenge,
+  getBattles, getGameSessions, getStories, getBattleStats,
+  getTrophies,
+} from '@/lib/db';
 import { speak, shouldGreet } from '@/lib/speech';
 import BadgeDisplay from '@/components/BadgeDisplay';
 import WordOfDayCard, { autoPlayWordOfDay } from '@/components/WordOfDayCard';
+import DedicationScreen from '@/components/DedicationScreen';
+import DadMessageScreen from '@/components/DadMessageScreen';
+import AnimalFactOfDay from '@/components/AnimalFactOfDay';
+import ChallengeCard from '@/components/ChallengeCard';
+import ChallengeCompletionOverlay from '@/components/ChallengeCompletionOverlay';
+import { ANIMALS } from '@/data/animals';
+import { deriveChallengeProgress } from '@/lib/challenge';
+import { displayName } from '@/lib/champion';
 
 interface WordOfDay {
   word: string;
@@ -33,6 +48,19 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [showWeeklyPrompt, setShowWeeklyPrompt] = useState(false);
   const [animalCount, setAnimalCount] = useState(0);
+  const [animalCollection, setAnimalCollection] = useState<AnimalUnlock[]>([]);
+  const [trophyCount, setTrophyCount] = useState(0);
+
+  // Phase 1 personal layer
+  const [showDedication, setShowDedication] = useState(false);
+  const [dadMessage, setDadMessage] = useState<DadMessage | null>(null);
+  const [showDadMessage, setShowDadMessage] = useState(false);
+  const [weeklyLetter, setWeeklyLetter] = useState<WeeklyLetter | null>(null);
+  const [showWeeklyLetter, setShowWeeklyLetter] = useState(false);
+  const [challenge, setChallenge] = useState<DadChallenge | null>(null);
+  const [challengeProgress, setChallengeProgress] = useState<ReturnType<typeof deriveChallengeProgress> | null>(null);
+  const [challengeJustCompleted, setChallengeJustCompleted] = useState(false);
+  const [extendedGreetingShown, setExtendedGreetingShown] = useState(false);
 
   const hasWordOfDayUnlock = progress.some(
     p => p.skill_area === 'word_wizard' && p.unlocks_earned.includes('Word of the Day')
@@ -44,16 +72,35 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      const [p, s, ac] = await Promise.all([getAllSkillProgress(), getStreak(), getAnimalCollection()]);
+      // First-launch dedication
+      if (typeof window !== 'undefined') {
+        const seen = localStorage.getItem('ppw_dedication_seen');
+        if (!seen) setShowDedication(true);
+      }
+
+      const [p, s, ac, msg, letter, ch, trophies] = await Promise.all([
+        getAllSkillProgress(),
+        getStreak(),
+        getAnimalCollection(),
+        getLatestDadMessage(),
+        getLatestWeeklyLetter(),
+        getActiveChallenge(),
+        getTrophies(),
+      ]);
       setProgress(p);
       setStreak(s);
       setAnimalCount(ac.length);
+      setAnimalCollection(ac);
+      setTrophyCount(trophies.filter(t => t.is_achieved).length);
+
+      if (msg && !msg.seen_by_wes) setDadMessage(msg);
+      if (letter && !letter.read_by_wes) setWeeklyLetter(letter);
+      setChallenge(ch);
+
       setLoading(false);
 
-      // Sync any pending offline saves
       syncOfflineQueue();
 
-      // Check scheduled assessment
       const settings = getParentSettings();
       if (settings.scheduled_assessment_day) {
         const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -63,6 +110,26 @@ export default function HomePage() {
       }
     })();
   }, []);
+
+  // Live-derive challenge progress when challenge exists
+  useEffect(() => {
+    if (!challenge || challenge.is_completed) {
+      setChallengeProgress(null);
+      return;
+    }
+    (async () => {
+      const [collection, battles, sessions, stories] = await Promise.all([
+        getAnimalCollection(), getBattles(200), getGameSessions(60), getStories(),
+      ]);
+      const stats = getBattleStats();
+      const progress = deriveChallengeProgress(challenge, { collection, battles, sessions, stories, stats });
+      setChallengeProgress(progress);
+      if (progress.isComplete && !challenge.celebrated && challenge.id) {
+        setChallengeJustCompleted(true);
+        await updateChallenge(challenge.id, { is_completed: true, celebrated: true, completed_at: new Date().toISOString() });
+      }
+    })();
+  }, [challenge]);
 
   useEffect(() => {
     if (hasWordOfDayUnlock) {
@@ -77,15 +144,26 @@ export default function HomePage() {
 
   // British greeting + Word of Day auto-play — once per session / once per day
   useEffect(() => {
-    if (!loading && shouldGreet()) {
+    if (!loading && shouldGreet() && !showDedication) {
       const greeted = sessionStorage.getItem('ppw_greeted');
       if (!greeted) {
         sessionStorage.setItem('ppw_greeted', '1');
+        // Extended greeting once per day
+        const today = new Date().toDateString();
+        const lastExt = localStorage.getItem('ppw_extended_greeting_date');
+        const showExtended = lastExt !== today;
+        if (showExtended) {
+          localStorage.setItem('ppw_extended_greeting_date', today);
+          setExtendedGreetingShown(true);
+        }
         setTimeout(async () => {
-          speak('Hello Wes! What shall we practise today?', { rate: 0.9, pitch: 1.1 });
-          // Auto-play Word of Day once per calendar day
+          speak(
+            showExtended
+              ? "Hello Wes! Dad's been thinking about you. What shall we practise today?"
+              : 'Hello Wes! What shall we practise today?',
+            { rate: 0.9, pitch: 1.1 },
+          );
           if (wordOfDay) {
-            const today = new Date().toDateString();
             const lastWotd = localStorage.getItem('ppw_last_wotd_play');
             if (lastWotd !== today) {
               localStorage.setItem('ppw_last_wotd_play', today);
@@ -95,7 +173,55 @@ export default function HomePage() {
         }, 1000);
       }
     }
-  }, [loading, wordOfDay]);
+  }, [loading, wordOfDay, showDedication]);
+
+  const handleDedicationDone = () => {
+    if (typeof window !== 'undefined') localStorage.setItem('ppw_dedication_seen', 'true');
+    setShowDedication(false);
+  };
+
+  const handleDadMessageOpen = () => setShowDadMessage(true);
+  const handleDadMessageDismiss = async () => {
+    setShowDadMessage(false);
+    if (dadMessage?.id) {
+      await markDadMessageSeen(dadMessage.id);
+      setDadMessage(null);
+    }
+  };
+
+  const handleLetterOpen = () => setShowWeeklyLetter(true);
+  const handleLetterDismiss = async () => {
+    setShowWeeklyLetter(false);
+    if (weeklyLetter?.id) {
+      await markWeeklyLetterRead(weeklyLetter.id);
+      setWeeklyLetter(null);
+    }
+  };
+
+  // Closest-to-leveling animal — preserves existing card
+  const closestAnimalCard = useMemo(() => {
+    const trainable = animalCollection.filter(c => !(c.is_max_level ?? false));
+    if (trainable.length === 0) return null;
+    const closest = [...trainable].sort((a, b) => {
+      const aGap = (a.xp_to_next_level ?? 100) - (a.current_xp ?? 0);
+      const bGap = (b.xp_to_next_level ?? 100) - (b.current_xp ?? 0);
+      return aGap - bGap;
+    })[0];
+    const animal = ANIMALS.find(a => a.id === closest.animal_id);
+    if (!animal) return null;
+    const gap = Math.max(0, (closest.xp_to_next_level ?? 100) - (closest.current_xp ?? 0));
+    const d = displayName(animal.name, closest);
+    return (
+      <button
+        onClick={() => router.push('/animals')}
+        className="w-full mb-4 bg-yellow-400/15 border border-yellow-400/40 rounded-2xl px-4 py-3 text-left active:scale-95 transition-transform"
+      >
+        <p className="text-sm font-bold text-navy">
+          💪 {animal.emoji} {d.isChampion ? `👑 ${d.text}` : d.text} is Level {closest.current_level ?? 1} — {gap} XP to next level!
+        </p>
+      </button>
+    );
+  }, [animalCollection, router]);
 
   if (loading) {
     return (
@@ -108,14 +234,92 @@ export default function HomePage() {
     );
   }
 
+  if (showDedication) {
+    return <DedicationScreen onDismiss={handleDedicationDone} />;
+  }
+
+  if (showDadMessage && dadMessage) {
+    return (
+      <DadMessageScreen
+        open
+        text={dadMessage.message_text}
+        title="A Message from Dad"
+        dismissLabel="Let's Play! ▶"
+        onDismiss={handleDadMessageDismiss}
+      />
+    );
+  }
+
+  if (showWeeklyLetter && weeklyLetter) {
+    return (
+      <DadMessageScreen
+        open
+        text={weeklyLetter.letter_text}
+        title="From Dad, with love 💛"
+        dismissLabel="Thanks Dad! 🤗"
+        onDismiss={handleLetterDismiss}
+      />
+    );
+  }
+
   return (
     <div className="p-6 pb-8">
+      <ChallengeCompletionOverlay
+        open={challengeJustCompleted}
+        description={challenge?.challenge_description || ''}
+        onDismiss={() => setChallengeJustCompleted(false)}
+      />
       <div className="max-w-md mx-auto">
         {/* Greeting */}
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-extrabold text-navy mb-1">Hi Wes! 👋</h1>
+          <h1 className="text-4xl font-extrabold text-navy mb-1">
+            Hi Wes!{extendedGreetingShown ? " Dad's been thinking about you." : ''} 👋
+          </h1>
           <p className="text-lg text-gray-500">Ready to learn something awesome?</p>
         </div>
+
+        {/* Dad's message card */}
+        {dadMessage && (
+          <button
+            onClick={handleDadMessageOpen}
+            className="w-full mb-4 bg-gradient-to-r from-amber-300 to-yellow-400 rounded-2xl p-4 text-left text-amber-900 shadow-lg active:scale-95 animate-pulse"
+            style={{ animationDuration: '2.4s' }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🔧</span>
+              <div className="flex-1">
+                <p className="text-xs font-bold uppercase tracking-wider">Dad&apos;s Workshop</p>
+                <p className="font-bold text-base">Dad was up late building something new for you!</p>
+              </div>
+              <span className="text-sm font-bold">Open 📬</span>
+            </div>
+          </button>
+        )}
+
+        {/* Weekly letter card */}
+        {weeklyLetter && (
+          <button
+            onClick={handleLetterOpen}
+            className="w-full mb-4 rounded-2xl p-4 text-left text-amber-900 shadow-md border-2 border-amber-300 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">📬</span>
+              <div className="flex-1">
+                <p className="text-xs font-bold uppercase tracking-wider">Letter from Dad</p>
+                <p className="font-handwriting text-xl leading-tight line-clamp-2" style={{ fontWeight: 500 }}>
+                  {weeklyLetter.letter_text.slice(0, 70)}{weeklyLetter.letter_text.length > 70 ? '…' : ''}
+                </p>
+              </div>
+              <span className="text-sm font-bold">Read it! ▶</span>
+            </div>
+          </button>
+        )}
+
+        {/* Challenge from Dad */}
+        {challenge && !challenge.is_completed && challengeProgress && (
+          <ChallengeCard challenge={challenge} progress={challengeProgress} />
+        )}
 
         {/* Star Student badge */}
         {hasStarStudent && (
@@ -145,6 +349,9 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Closest-to-leveling animal */}
+        {closestAnimalCard}
+
         {/* Weekly assessment prompt */}
         {showWeeklyPrompt && (
           <div className="bg-navy/5 border-2 border-navy/20 rounded-2xl p-4 mb-4 text-center">
@@ -168,6 +375,9 @@ export default function HomePage() {
 
         {/* Word of the Day */}
         {wordOfDay && <WordOfDayCard data={wordOfDay} />}
+
+        {/* Animal Fact of the Day */}
+        <AnimalFactOfDay collection={animalCollection} />
 
         {/* Game mode buttons */}
         <div className="space-y-3 mb-6">
@@ -206,37 +416,43 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Links */}
-        <div className="text-center space-y-2">
-          <button
-            onClick={() => router.push('/animals')}
-            className="text-sm text-gray-400 hover:text-coral font-bold block mx-auto"
-          >
-            My Animals 🦁
+        {/* Quick links */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button onClick={() => router.push('/animals')}
+            className="bg-navy/5 border border-navy/10 rounded-xl py-2 text-sm font-bold text-navy active:scale-95">
+            Wes&apos;s Animals 🦁
           </button>
-          {animalCount >= 2 ? (
-            <button onClick={() => router.push('/battle')} className="text-sm text-red-400 hover:text-red-300 font-bold block mx-auto">
-              BATTLE ARENA ⚔️
+          <button onClick={() => router.push('/trophies')}
+            className="bg-yellow-400/15 border border-yellow-400/30 rounded-xl py-2 text-sm font-bold text-yellow-700 active:scale-95">
+            Trophy Room 🏆
+          </button>
+          {animalCount >= 2 && (
+            <button onClick={() => router.push('/battle')}
+              className="bg-red-500/10 border border-red-500/20 rounded-xl py-2 text-sm font-bold text-red-600 active:scale-95">
+              Battle Arena ⚔️
             </button>
-          ) : animalCount > 0 ? (
-            <p className="text-xs text-gray-500 block mx-auto">Unlock more animals to battle!</p>
-          ) : null}
-          {animalCount >= 10 ? (
-            <button onClick={() => router.push('/battle/tournament/setup')} className="text-sm text-yellow-500 hover:text-yellow-400 font-bold block mx-auto">
+          )}
+          <button onClick={() => router.push('/stories')}
+            className="bg-coral/10 border border-coral/20 rounded-xl py-2 text-sm font-bold text-coral active:scale-95">
+            Wes&apos;s Stories 📚
+          </button>
+        </div>
+        <p className="text-center text-xs text-yellow-700 font-bold mb-4">{trophyCount} trophies earned!</p>
+        {animalCount >= 10 && (
+          <div className="text-center mb-2">
+            <button onClick={() => router.push('/battle/tournament/setup')} className="text-sm text-yellow-500 hover:text-yellow-400 font-bold">
               TOURNAMENT! 🏆
             </button>
-          ) : animalCount >= 2 ? (
-            <p className="text-xs text-gray-400 block mx-auto">Unlock {10 - animalCount} more for Tournament!</p>
-          ) : null}
-          <button
-            onClick={() => router.push('/stories')}
-            className="text-sm text-gray-400 hover:text-coral font-bold block mx-auto"
-          >
-            My Stories 📚
-          </button>
+          </div>
+        )}
+        {animalCount >= 2 && animalCount < 10 && (
+          <p className="text-xs text-gray-400 text-center">Unlock {10 - animalCount} more for Tournament!</p>
+        )}
+
+        <div className="text-center mt-4">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-sm text-gray-400 hover:text-navy font-bold block mx-auto"
+            className="text-xs text-gray-400 hover:text-navy font-bold"
           >
             Parent Dashboard →
           </button>
