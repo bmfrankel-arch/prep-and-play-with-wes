@@ -170,6 +170,9 @@ export interface AnimalUnlock {
   level_bonuses?: { strength: number; speed: number; defense: number; powerLevel: number };
   total_xp_earned?: number;
   is_max_level?: boolean;
+  // ── Phase 1 personalisation ──
+  champion_name?: string | null;
+  is_favorite?: boolean;
 }
 
 export interface XpTransaction {
@@ -196,6 +199,10 @@ export interface BattleRecord {
   battle_explanation: string;
   wes_agreed_with_result: boolean | null;
   battled_at?: string;
+  // Optional educational metadata (added with Battle Breakdown)
+  battle_reaction?: 'wow' | 'cool' | null;
+  deciding_factor?: string | null;
+  modifier_types?: string[] | null;
 }
 
 export interface BattleStats {
@@ -364,6 +371,68 @@ export function getPerformanceBand(score: number, total: number): PerformanceBan
   if (ratio >= 0.6) return 'Good Work';
   if (ratio >= 0.4) return 'Keep Practicing';
   return "Let's Review Together";
+}
+
+// ── Dad's Workshop / Personal layer ─────────────────────────────────────
+
+export interface DadMessage {
+  id?: string;
+  message_text: string;
+  created_at?: string;
+  seen_by_wes?: boolean;
+  seen_at?: string | null;
+}
+
+export interface WeeklyLetter {
+  id?: string;
+  letter_text: string;
+  created_at?: string;
+  read_by_wes?: boolean;
+  read_at?: string | null;
+}
+
+export type ChallengeType =
+  | 'unlock_animals'
+  | 'perfect_quiz'
+  | 'complete_stories'
+  | 'win_battles'
+  | 'practice_confidence'
+  | 'outstanding_confidence'
+  | 'level_up_animal'
+  | 'addition_subtraction_sessions'
+  | 'beat_high_score'
+  | 'custom';
+
+export interface DadChallenge {
+  id?: string;
+  challenge_type: ChallengeType;
+  challenge_description: string;
+  target_value: number | null;
+  current_progress: number;
+  baseline_snapshot?: ChallengeBaselineSnapshot | null;
+  is_active: boolean;
+  is_completed: boolean;
+  celebrated?: boolean;
+  created_at?: string;
+  completed_at?: string | null;
+}
+
+export interface ChallengeBaselineSnapshot {
+  animal_count?: number;
+  stories_count?: number;
+  battles_won?: number;
+  confidence_sessions?: number;
+  best_streak?: number;
+  worksheets_count?: number;
+  max_level_count?: number;
+}
+
+export interface WesTrophy {
+  id?: string;
+  trophy_id: string;
+  achieved_at?: string | null;
+  achievement_detail?: string | null;
+  is_achieved: boolean;
 }
 
 export function getPerformanceStars(band: PerformanceBand): string {

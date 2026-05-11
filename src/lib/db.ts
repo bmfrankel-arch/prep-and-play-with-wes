@@ -16,6 +16,10 @@ import {
   BattleStats,
   Tournament,
   XpTransaction,
+  DadMessage,
+  WeeklyLetter,
+  DadChallenge,
+  WesTrophy,
 } from './types';
 import {
   AnimalCollectionLevelState,
@@ -466,15 +470,35 @@ export async function getAnimalCollection(): Promise<AnimalUnlock[]> {
 
 // ── Battles ──
 
-export async function saveBattle(battle: BattleRecord): Promise<void> {
+export async function saveBattle(battle: BattleRecord): Promise<string | null> {
   const record = { ...battle, battled_at: new Date().toISOString() };
   if (!isSupabaseConfigured()) {
     const battles = getLocal<BattleRecord[]>('battles', []);
-    battles.unshift({ ...record, id: crypto.randomUUID() });
+    const id = crypto.randomUUID();
+    battles.unshift({ ...record, id });
     setLocal('battles', battles);
+    return id;
+  }
+  const { data, error } = await supabase.from('battles').insert(record).select('id').single();
+  if (error) return null;
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+export async function updateBattleMeta(
+  id: string,
+  patch: Partial<Pick<BattleRecord, 'battle_reaction' | 'deciding_factor' | 'modifier_types' | 'wes_agreed_with_result' | 'battle_explanation'>>,
+): Promise<void> {
+  if (!id) return;
+  if (!isSupabaseConfigured()) {
+    const battles = getLocal<BattleRecord[]>('battles', []);
+    const idx = battles.findIndex(b => b.id === id);
+    if (idx >= 0) {
+      battles[idx] = { ...battles[idx], ...patch };
+      setLocal('battles', battles);
+    }
     return;
   }
-  await supabase.from('battles').insert(record);
+  await supabase.from('battles').update(patch).eq('id', id);
 }
 
 export async function getBattles(limit: number = 20): Promise<BattleRecord[]> {
@@ -682,4 +706,325 @@ export function getCurrentTournament(): Tournament | null {
 
 export function getTournamentHistory(): Tournament[] {
   return getLocal<Tournament[]>('tournament_history', []);
+}
+
+// ── Dad's Workshop / Personal layer ─────────────────────────────────────
+
+const SEEDED_DAD_MESSAGE = "Hi Wes! I built this whole app just for you. Every game, every animal, every quiz — I made it because I believe in how smart and brave and curious you are. There are 100 animals to collect, battles to win, and so much to learn. I can't wait to see you grow. Love always, Dad 🦁";
+const SEEDED_WEEKLY_LETTER = "Wes — I have been thinking about you all week and I am so proud of how hard you are working. Every day you are getting smarter and braver and more incredible. Keep going — I am watching and I am cheering for you every single day. Love always, Dad 🦁";
+
+function ensureSeed<T extends { id?: string }>(key: string, seed: T): T[] {
+  const list = getLocal<T[]>(key, []);
+  if (list.length === 0) {
+    const seeded = { ...seed, id: crypto.randomUUID() };
+    setLocal(key, [seeded]);
+    return [seeded];
+  }
+  return list;
+}
+
+// ── dad_messages ──
+
+export async function getLatestDadMessage(): Promise<DadMessage | null> {
+  if (!isSupabaseConfigured()) {
+    const list = ensureSeed<DadMessage>('dad_messages', {
+      message_text: SEEDED_DAD_MESSAGE,
+      created_at: new Date().toISOString(),
+      seen_by_wes: false,
+    });
+    const sorted = [...list].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    return sorted[0] || null;
+  }
+  try {
+    const { data } = await supabase.from('dad_messages').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return (data as DadMessage | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function markDadMessageSeen(id: string): Promise<void> {
+  if (!id) return;
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadMessage[]>('dad_messages', []);
+    const idx = list.findIndex(m => m.id === id);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], seen_by_wes: true, seen_at: new Date().toISOString() };
+      setLocal('dad_messages', list);
+    }
+    return;
+  }
+  try {
+    await supabase.from('dad_messages').update({ seen_by_wes: true, seen_at: new Date().toISOString() }).eq('id', id);
+  } catch (err) {
+    console.error('markDadMessageSeen error:', err);
+  }
+}
+
+export async function sendDadMessage(text: string): Promise<DadMessage | null> {
+  const record: DadMessage = {
+    message_text: text,
+    created_at: new Date().toISOString(),
+    seen_by_wes: false,
+  };
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadMessage[]>('dad_messages', []);
+    const inserted = { ...record, id: crypto.randomUUID() };
+    list.unshift(inserted);
+    setLocal('dad_messages', list);
+    return inserted;
+  }
+  try {
+    const { data } = await supabase.from('dad_messages').insert(record).select('*').single();
+    return (data as DadMessage | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDadMessages(limit: number = 20): Promise<DadMessage[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<DadMessage[]>('dad_messages', []).slice(0, limit);
+  }
+  try {
+    const { data } = await supabase.from('dad_messages').select('*').order('created_at', { ascending: false }).limit(limit);
+    return (data || []) as DadMessage[];
+  } catch {
+    return [];
+  }
+}
+
+// ── weekly_letters ──
+
+export async function getLatestWeeklyLetter(): Promise<WeeklyLetter | null> {
+  if (!isSupabaseConfigured()) {
+    const list = ensureSeed<WeeklyLetter>('weekly_letters', {
+      letter_text: SEEDED_WEEKLY_LETTER,
+      created_at: new Date().toISOString(),
+      read_by_wes: false,
+    });
+    const sorted = [...list].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    return sorted[0] || null;
+  }
+  try {
+    const { data } = await supabase.from('weekly_letters').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return (data as WeeklyLetter | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function markWeeklyLetterRead(id: string): Promise<void> {
+  if (!id) return;
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<WeeklyLetter[]>('weekly_letters', []);
+    const idx = list.findIndex(m => m.id === id);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], read_by_wes: true, read_at: new Date().toISOString() };
+      setLocal('weekly_letters', list);
+    }
+    return;
+  }
+  try {
+    await supabase.from('weekly_letters').update({ read_by_wes: true, read_at: new Date().toISOString() }).eq('id', id);
+  } catch (err) {
+    console.error('markWeeklyLetterRead error:', err);
+  }
+}
+
+export async function sendWeeklyLetter(text: string): Promise<WeeklyLetter | null> {
+  const record: WeeklyLetter = {
+    letter_text: text,
+    created_at: new Date().toISOString(),
+    read_by_wes: false,
+  };
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<WeeklyLetter[]>('weekly_letters', []);
+    const inserted = { ...record, id: crypto.randomUUID() };
+    list.unshift(inserted);
+    setLocal('weekly_letters', list);
+    return inserted;
+  }
+  try {
+    const { data } = await supabase.from('weekly_letters').insert(record).select('*').single();
+    return (data as WeeklyLetter | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getWeeklyLetters(limit: number = 20): Promise<WeeklyLetter[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<WeeklyLetter[]>('weekly_letters', []).slice(0, limit);
+  }
+  try {
+    const { data } = await supabase.from('weekly_letters').select('*').order('created_at', { ascending: false }).limit(limit);
+    return (data || []) as WeeklyLetter[];
+  } catch {
+    return [];
+  }
+}
+
+// ── dad_challenges ──
+
+export async function getActiveChallenge(): Promise<DadChallenge | null> {
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadChallenge[]>('dad_challenges', []);
+    return list.find(c => c.is_active && !c.is_completed) || null;
+  }
+  try {
+    const { data } = await supabase.from('dad_challenges').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return (data as DadChallenge | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getLatestChallenge(): Promise<DadChallenge | null> {
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadChallenge[]>('dad_challenges', []);
+    return list[0] || null;
+  }
+  try {
+    const { data } = await supabase.from('dad_challenges').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return (data as DadChallenge | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function createChallenge(c: DadChallenge): Promise<DadChallenge | null> {
+  // Deactivate any existing active challenge first.
+  await deactivateActiveChallenge();
+  const record: DadChallenge = {
+    ...c,
+    created_at: new Date().toISOString(),
+    is_active: true,
+    is_completed: false,
+    celebrated: false,
+    current_progress: 0,
+  };
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadChallenge[]>('dad_challenges', []);
+    const inserted = { ...record, id: crypto.randomUUID() };
+    list.unshift(inserted);
+    setLocal('dad_challenges', list);
+    return inserted;
+  }
+  try {
+    const { data } = await supabase.from('dad_challenges').insert(record).select('*').single();
+    return (data as DadChallenge | null) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateChallenge(id: string, patch: Partial<DadChallenge>): Promise<void> {
+  if (!id) return;
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadChallenge[]>('dad_challenges', []);
+    const idx = list.findIndex(c => c.id === id);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...patch };
+      setLocal('dad_challenges', list);
+    }
+    return;
+  }
+  try {
+    await supabase.from('dad_challenges').update(patch).eq('id', id);
+  } catch (err) {
+    console.error('updateChallenge error:', err);
+  }
+}
+
+export async function deactivateActiveChallenge(): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<DadChallenge[]>('dad_challenges', []);
+    let dirty = false;
+    list.forEach(c => { if (c.is_active) { c.is_active = false; dirty = true; } });
+    if (dirty) setLocal('dad_challenges', list);
+    return;
+  }
+  try {
+    await supabase.from('dad_challenges').update({ is_active: false }).eq('is_active', true);
+  } catch (err) {
+    console.error('deactivateActiveChallenge error:', err);
+  }
+}
+
+// ── wes_trophies ──
+
+export async function getTrophies(): Promise<WesTrophy[]> {
+  if (!isSupabaseConfigured()) {
+    return getLocal<WesTrophy[]>('wes_trophies', []);
+  }
+  try {
+    const { data } = await supabase.from('wes_trophies').select('*');
+    return (data || []) as WesTrophy[];
+  } catch {
+    return [];
+  }
+}
+
+export async function setTrophyAchieved(trophyId: string, detail?: string): Promise<void> {
+  if (!trophyId) return;
+  const achieved_at = new Date().toISOString();
+  if (!isSupabaseConfigured()) {
+    const list = getLocal<WesTrophy[]>('wes_trophies', []);
+    const idx = list.findIndex(t => t.trophy_id === trophyId);
+    if (idx >= 0) {
+      if (list[idx].is_achieved) return;
+      list[idx] = { ...list[idx], is_achieved: true, achieved_at, achievement_detail: detail || list[idx].achievement_detail };
+    } else {
+      list.push({ trophy_id: trophyId, is_achieved: true, achieved_at, achievement_detail: detail || null, id: crypto.randomUUID() });
+    }
+    setLocal('wes_trophies', list);
+    return;
+  }
+  try {
+    // Upsert by trophy_id
+    const { data } = await supabase.from('wes_trophies').select('id, is_achieved').eq('trophy_id', trophyId).maybeSingle();
+    if (data?.id) {
+      if (data.is_achieved) return;
+      await supabase.from('wes_trophies').update({ is_achieved: true, achieved_at, achievement_detail: detail }).eq('id', data.id);
+    } else {
+      await supabase.from('wes_trophies').insert({ trophy_id: trophyId, is_achieved: true, achieved_at, achievement_detail: detail });
+    }
+  } catch (err) {
+    console.error('setTrophyAchieved error:', err);
+  }
+}
+
+// ── Animal favourites + champion names (on animal_collection) ──
+
+export async function setAnimalFavorite(animalId: string, isFavorite: boolean): Promise<void> {
+  // Always update local mirror.
+  const local = getLocal<AnimalUnlock[]>('animal_collection', []);
+  const idx = local.findIndex(c => c.animal_id === animalId);
+  if (idx >= 0) {
+    local[idx] = { ...local[idx], is_favorite: isFavorite };
+    setLocal('animal_collection', local);
+  }
+  if (!isSupabaseConfigured()) return;
+  try {
+    await supabase.from('animal_collection').update({ is_favorite: isFavorite }).eq('animal_id', animalId);
+  } catch (err) {
+    console.error('setAnimalFavorite error:', err);
+  }
+}
+
+export async function setChampionName(animalId: string, name: string | null): Promise<void> {
+  const trimmed = name ? name.trim().slice(0, 15) : null;
+  const local = getLocal<AnimalUnlock[]>('animal_collection', []);
+  const idx = local.findIndex(c => c.animal_id === animalId);
+  if (idx >= 0) {
+    local[idx] = { ...local[idx], champion_name: trimmed };
+    setLocal('animal_collection', local);
+  }
+  if (!isSupabaseConfigured()) return;
+  try {
+    await supabase.from('animal_collection').update({ champion_name: trimmed }).eq('animal_id', animalId);
+  } catch (err) {
+    console.error('setChampionName error:', err);
+  }
 }
