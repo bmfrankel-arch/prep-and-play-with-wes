@@ -1,6 +1,7 @@
 // Prep & Play with Wes — offline app shell cache
-// Bump CACHE_VERSION to force a refresh of the precached shell.
-const CACHE_VERSION = 'v1';
+// Bump CACHE_VERSION on each deploy that changes the SW logic so the old
+// cache is dropped and the new one repopulates.
+const CACHE_VERSION = 'v2';
 const SHELL_CACHE = `ppw-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `ppw-runtime-${CACHE_VERSION}`;
 
@@ -33,25 +34,69 @@ const APP_SHELL = [
   '/battle',
   '/trophies',
   '/dashboard',
+  '/dashboard/settings',
+];
+
+const STATIC_FILES = [
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
   '/icon.svg',
 ];
 
+// Extract every /_next/static/... URL the HTML references — script chunks,
+// CSS, fonts, RSC payload hints. Without these in the cache the route's HTML
+// loads offline but React can't hydrate and the page renders blank.
+function extractNextAssetUrls(html) {
+  const urls = new Set();
+  const re = /["'(](\/_next\/[^"'()\s>]+)["')]/g;
+  let m;
+  while ((m = re.exec(html)) !== null) urls.add(m[1]);
+  return [...urls];
+}
+
+async function precacheRoute(cache, url) {
+  try {
+    const res = await fetch(url, { cache: 'reload' });
+    if (!res || !res.ok) return [];
+    const cloneForCache = res.clone();
+    const cloneForParse = res.clone();
+    await cache.put(url, cloneForCache);
+    const text = await cloneForParse.text();
+    return extractNextAssetUrls(text);
+  } catch {
+    return [];
+  }
+}
+
+async function precacheAssets(cache, urls) {
+  await Promise.all(urls.map(u =>
+    fetch(u, { cache: 'reload' })
+      .then(r => (r && r.ok ? cache.put(u, r) : null))
+      .catch(() => null)
+  ));
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE)
-      // Use individual put() so a single 404 doesn't abort the whole install.
-      .then((cache) => Promise.all(
-        APP_SHELL.map((url) =>
-          fetch(url, { cache: 'reload' })
-            .then((res) => (res.ok ? cache.put(url, res) : null))
-            .catch(() => null)
-        )
-      ))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+
+    // Step 1: cache static files (icons, manifest) — independent of HTML parse.
+    await precacheAssets(cache, STATIC_FILES);
+
+    // Step 2: fetch each app shell route, cache the HTML, and harvest the
+    // /_next/static/* URLs each one references.
+    const chunkUrls = new Set();
+    for (const url of APP_SHELL) {
+      const refs = await precacheRoute(cache, url);
+      refs.forEach(u => chunkUrls.add(u));
+    }
+
+    // Step 3: cache all discovered Next.js chunks + CSS.
+    await precacheAssets(cache, [...chunkUrls]);
+
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
