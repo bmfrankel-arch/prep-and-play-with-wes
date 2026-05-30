@@ -7,6 +7,7 @@ import { getSkillProgress, updateSkillProgress, saveGameSession, saveWord, getPa
 import { playCorrectSound, playWrongSound } from '@/lib/audio';
 import { speakQuestion, speakChoices, speak, stopSpeaking, shouldAutoRead, shouldReadChoices } from '@/lib/speech';
 import { getFallbackQuestions } from '@/data/fallbacks';
+import { getCachedQuestions as getOfflineCachedQuestions } from '@/lib/offlineCache';
 import { generateFallbackWorkShown, WorkShown } from '@/lib/mathExplainer';
 import Confetti from './Confetti';
 import LevelUpSequence from './LevelUpSequence';
@@ -97,6 +98,18 @@ export default function GameShell({
       }
     }
 
+    // If we know we're offline, skip the API and go straight to the IndexedDB
+    // cache populated by the Pre-load button. Falls through to local fallbacks if empty.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const offline = await getOfflineCachedQuestions(skillArea, subGame, lvl) as GameQuestion[] | null;
+      if (offline?.length) {
+        setQuestions(offline);
+        setIsFallback(true);
+        setLoading(false);
+        return;
+      }
+    }
+
     // Try API with timeout and auto-retry
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -132,7 +145,16 @@ export default function GameShell({
       }
     }
 
-    // Both attempts failed — use fallback
+    // Both API attempts failed — try the pre-loaded IndexedDB cache before
+    // dropping to the bundled local fallback set.
+    const offline = await getOfflineCachedQuestions(skillArea, subGame, lvl) as GameQuestion[] | null;
+    if (offline?.length) {
+      setQuestions(offline);
+      setIsFallback(true);
+      setLoading(false);
+      return;
+    }
+
     const fallback = getFallbackQuestions(skillArea, subGame, lvl) as GameQuestion[] | null;
     if (fallback?.length) {
       setQuestions(fallback);

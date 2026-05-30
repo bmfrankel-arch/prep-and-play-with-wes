@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getParentSettings, saveParentSettings } from '@/lib/db';
 import { ParentSettings } from '@/lib/types';
 import { speak } from '@/lib/speech';
-import { preloadForOffline } from '@/lib/offlineCache';
+import { preloadForOffline, getCacheStatus, type PreloadProgress } from '@/lib/offlineCache';
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -18,12 +18,34 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<ParentSettings | null>(null);
-  const [offlineStatus, setOfflineStatus] = useState('');
+  const [offlineProgress, setOfflineProgress] = useState<PreloadProgress | null>(null);
   const [offlineLoading, setOfflineLoading] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState<{ modulesCached: number; totalModules: number; lastCachedAt: string | null } | null>(null);
 
   useEffect(() => {
     setSettings(getParentSettings());
+    getCacheStatus().then(setCacheStatus);
   }, []);
+
+  const runPreload = async () => {
+    setOfflineLoading(true);
+    setOfflineProgress({ message: 'Starting...', completed: 0, total: 1, percent: 0 });
+    await preloadForOffline(p => setOfflineProgress(p));
+    setOfflineLoading(false);
+    const status = await getCacheStatus();
+    setCacheStatus(status);
+  };
+
+  const isReady = cacheStatus && cacheStatus.modulesCached >= Math.ceil(cacheStatus.totalModules * 0.8);
+  const formatCachedAt = (iso: string | null) => {
+    if (!iso) return 'never';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString();
+    } catch {
+      return iso;
+    }
+  };
 
   if (!settings) return null;
 
@@ -199,14 +221,57 @@ export default function SettingsPage() {
           {/* Offline Mode */}
           <div className="bg-gray-50 rounded-2xl p-5">
             <h3 className="font-bold text-navy text-lg mb-4">Offline Mode ✈️</h3>
-            <p className="text-sm text-gray-600 mb-4">Pre-load questions so the app works without internet.</p>
+            <p className="text-sm text-gray-600 mb-4">Pre-load questions so the app works on the plane.</p>
+
+            {cacheStatus && (
+              <div className={`rounded-xl p-3 mb-4 text-sm ${isReady ? 'bg-grass/10 border border-grass/30' : 'bg-amber-50 border border-amber-200'}`}>
+                <p className="font-bold text-navy">
+                  {isReady ? '✅ Ready for offline!' : '⚠️ Not ready yet'}
+                </p>
+                <p className="text-gray-600 text-xs mt-1">
+                  {cacheStatus.modulesCached} of {cacheStatus.totalModules} modules cached
+                </p>
+                <p className="text-gray-500 text-xs">
+                  Last preloaded: {formatCachedAt(cacheStatus.lastCachedAt)}
+                </p>
+              </div>
+            )}
+
             <button
-              onClick={async () => { setOfflineLoading(true); await preloadForOffline(msg => setOfflineStatus(msg)); setOfflineLoading(false); }}
+              onClick={runPreload}
               disabled={offlineLoading}
-              className="bg-navy text-white font-bold px-6 py-3 rounded-xl disabled:opacity-50">
-              {offlineLoading ? 'Downloading...' : 'Pre-load for Offline'}
+              className="bg-gold text-navy font-bold px-6 py-3 rounded-xl disabled:opacity-50 w-full">
+              {offlineLoading ? 'Pre-loading...' : (cacheStatus && cacheStatus.modulesCached > 0 ? 'Re-load Content ✈️' : 'Pre-load for Offline ✈️')}
             </button>
-            {offlineStatus && <p className="text-sm text-gray-500 mt-2">{offlineStatus}</p>}
+
+            {offlineProgress && offlineLoading && (
+              <div className="mt-4">
+                <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gold transition-all duration-300"
+                    style={{ width: `${offlineProgress.percent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-gray-500">{offlineProgress.message}</span>
+                  <span className="font-bold text-navy">
+                    {offlineProgress.completed} / {offlineProgress.total} · {offlineProgress.percent}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {offlineProgress && !offlineLoading && offlineProgress.percent === 100 && (
+              <p className="text-sm text-grass font-bold mt-3">
+                ✅ {offlineProgress.message}
+              </p>
+            )}
+
+            <div className="mt-4 space-y-1 text-xs text-gray-500">
+              <p>💡 Addition and subtraction tables always work offline — they use math, not the internet.</p>
+              <p>💡 Animal battles work offline — animal data is bundled with the app.</p>
+              <p>💡 Pre-load the night before your trip at home, not at the airport.</p>
+            </div>
           </div>
         </div>
       </div>

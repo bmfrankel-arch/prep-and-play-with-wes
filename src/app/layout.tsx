@@ -6,7 +6,15 @@ export const metadata: Metadata = {
   title: "Prep & Play with Wes",
   description: "A kindergarten skill-building app to help Wes prepare for Dallas private school admissions",
   manifest: "/manifest.json",
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon-192.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Prep & Play",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport = {
@@ -25,6 +33,17 @@ export default function RootLayout({
       <body className="font-nunito antialiased min-h-screen">
         <OfflineIndicator />
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(){});
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
